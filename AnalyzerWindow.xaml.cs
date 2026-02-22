@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 
 namespace Piexe
 {
@@ -24,6 +25,16 @@ namespace Piexe
         public static bool IsDirectory(this string value)
         {
             return Directory.Exists(value);
+        }
+
+        public static bool IsImageFile(this string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                return false;
+
+            string extension = Path.GetExtension(filePath).ToLowerInvariant();
+
+            return extension is ".jpg" or ".jpeg" or ".png" or ".gif" or ".bmp" or ".webp";
         }
     }
 
@@ -609,6 +620,62 @@ namespace Piexe
                 App.Current.Shutdown();
             }
             base.OnKeyDown(e);
+        }
+
+        private void Window_PreviewDragEnter(object sender, DragEventArgs e)
+        {
+            bool canDrop = false;
+
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+                {
+                    foreach (var file in files)
+                    {
+                        if (file.IsImageFile())
+                        {
+                            canDrop = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            e.Effects = canDrop ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+
+            if (canDrop)
+            {
+                var blur = new BlurEffect
+                {
+                    Radius = 12,
+                    RenderingBias = RenderingBias.Performance
+                };
+                MainWindowGrid.Effect = blur;
+            }
+        }
+
+        private void Window_PreviewDragLeave(object sender, DragEventArgs e)
+        {
+            e.Handled = true;
+            MainWindowGrid.Effect = null;
+        }
+
+        private void Window_PreviewDrop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+
+                foreach (var file in files)
+                {
+                    if (file.IsImageFile())
+                    {
+                        // TODO: Open the analyzing window for the dropped picture
+                    }
+                }
+            }
+            e.Handled = true;
         }
     }
 }

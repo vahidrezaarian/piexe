@@ -7,6 +7,10 @@
         xmlns:wpfgif="http://wpfanimatedgif.codeplex.com"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
         WindowStyle="None"
+        AllowDrop="True"
+        PreviewDragEnter="Window_PreviewDragEnter"
+        PreviewDragLeave="Window_PreviewDragLeave"
+        PreviewDrop="Window_PreviewDrop"
         ShowInTaskbar="True"
         WindowStartupLocation="CenterScreen"
         AllowsTransparency="True"
@@ -15,13 +19,13 @@
     <Window.Background>
         <SolidColorBrush Color="Transparent"/>
     </Window.Background>
-    <Border x:Name="WindowsBorder" CornerRadius="15" Background="Transparent">
-        <Grid>
+    <Border x:Name="WindowsBorder" CornerRadius="15" Background="Transparent" BorderThickness="1" BorderBrush="LightGray">
+        <Grid x:Name="MainWindowGrid">
             <Grid.RowDefinitions>
                 <RowDefinition/>
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Background="#202020" BorderThickness="1" BorderBrush="LightGray" CornerRadius="15"/>
+            <Border Grid.Row="0" Background="#202020" BorderThickness="0" CornerRadius="15"/>
 
             <Grid Grid.Row="0">
                 <Grid.RowDefinitions>
@@ -53,8 +57,8 @@
                                                     Height="{TemplateBinding Height}"
                                                     Width="{TemplateBinding Width}"
                                                     CornerRadius="10"
-                                                    SnapsToDevicePixels="True">     
-                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                    SnapsToDevicePixels="True">
+                                                <ContentPresenter HorizontalAlignment="Center"
                                                                       VerticalAlignment="Center"
                                                                       Content="{TemplateBinding Content}"
                                                                       ContentTemplate="{TemplateBinding ContentTemplate}"/>

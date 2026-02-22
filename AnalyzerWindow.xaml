@@ -13,15 +13,15 @@
         MouseDown="WindowMouseDown"
         Title="Piexe" MaxWidth="900" MaxHeight="500" MinWidth="250" SizeToContent="WidthAndHeight">
     <Window.Background>
-        <SolidColorBrush Opacity="0" Color="Black"/>
+        <SolidColorBrush Color="Transparent"/>
     </Window.Background>
-    <Border x:Name="WindowsBorder" BorderThickness="1.5" CornerRadius="15" BorderBrush="DeepSkyBlue" Background="Transparent">
+    <Border x:Name="WindowsBorder" CornerRadius="15" Background="Transparent">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition/>
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Background="Black" Opacity="0.9" BorderThickness="0" CornerRadius="15"/>
+            <Border Grid.Row="0" Background="#202020" BorderThickness="1" BorderBrush="LightGray" CornerRadius="15"/>
 
             <Grid Grid.Row="0">
                 <Grid.RowDefinitions>
@@ -37,9 +37,40 @@
 
                     <TextBlock Grid.Column="0" x:Name="WindowTitle" Text="Piexe" Foreground="AliceBlue" FontFamily="Segoe Print" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="15,0,0,0" FontSize="17" FontWeight="SemiBold"/>
 
-                    <Border Grid.Column="1" x:Name="CloseWindowButton" Height="20" CornerRadius="10" Background="red" Padding="10,0,10,0" MouseLeftButtonUp="CloseButtonClick" HorizontalAlignment="Right" Margin="0,0,14.5,0" VerticalAlignment="Center" MouseEnter="CloseButtonMouseEnter" MouseLeave="CloseButtonMouseLeave">
-                        <TextBlock x:Name="CloseWindowButtonText" Text="Close" HorizontalAlignment="Center" Width="0" VerticalAlignment="Center" TextAlignment="Center" FontWeight="SemiBold" Foreground="Black"/>
-                    </Border>
+                    <Button Grid.Column="1" x:Name="CloseWindowButton" Height="20" Width="20" Background="LightGray" Padding="10,0,10,0" 
+                            HorizontalAlignment="Right" Margin="0,0,14.5,0"  MouseLeave="CloseButtonMouseLeave"
+                            VerticalAlignment="Center" MouseEnter="CloseButtonMouseEnter" Click="CloseWindowButtonClick">
+                        <TextBlock x:Name="CloseWindowButtonText" Text="Close" HorizontalAlignment="Center" Width="0" 
+                                   VerticalAlignment="Center" TextAlignment="Center" FontWeight="SemiBold" Foreground="White"/>
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="{x:Type Button}">
+                                            <Border x:Name="Border"
+                                                    Background="{TemplateBinding Background}"
+                                                    BorderThickness="1"
+                                                    Height="{TemplateBinding Height}"
+                                                    Width="{TemplateBinding Width}"
+                                                    CornerRadius="10"
+                                                    SnapsToDevicePixels="True">     
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"
+                                                                      Content="{TemplateBinding Content}"
+                                                                      ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                            </Border>
+
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Border" Property="Background" Value="Red"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </Grid>
 
                 <ScrollViewer Grid.Row="1" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top" ScrollViewer.VerticalScrollBarVisibility="Hidden" Margin="15">

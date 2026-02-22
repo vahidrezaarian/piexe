@@ -518,19 +518,27 @@ namespace Piexe
             Dispatcher.Invoke(() =>
             {
                 _closeButtonAnimationMutex.WaitOne();
-                if (CloseWindowButtonText.Width != 0)
+                if (CloseWindowButton.Width != 20)
                 {
                     _closeButtonAnimationMutex.ReleaseMutex();
                     return;
                 }
-                var visibilityChangeAnimation = new DoubleAnimation()
+
+                var buttonSizeChangeAnimation = new DoubleAnimation()
                 {
-                    From = 0,
-                    To = 60,
+                    From = 20,
+                    To = 50,
                     Duration = TimeSpan.FromSeconds(0.3)
                 };
 
-                visibilityChangeAnimation.Completed += (s, ee) =>
+                var buttonTextSizeChangeAnimation = new DoubleAnimation()
+                {
+                    From = 0,
+                    To = 60,
+                    Duration = TimeSpan.FromSeconds(0.5)
+                };
+
+                buttonSizeChangeAnimation.Completed += (s, ee) =>
                 {
                     _closeButtonAnimationMutex.ReleaseMutex();
                     if (!CloseWindowButton.IsMouseOver)
@@ -538,7 +546,8 @@ namespace Piexe
                         CloseButtonMouseLeave(this, e);
                     }
                 };
-                CloseWindowButtonText.BeginAnimation(WidthProperty, visibilityChangeAnimation);
+                CloseWindowButton.BeginAnimation(WidthProperty, buttonSizeChangeAnimation);
+                CloseWindowButtonText.BeginAnimation(WidthProperty, buttonTextSizeChangeAnimation);
             });
         }
 
@@ -547,19 +556,27 @@ namespace Piexe
             Dispatcher.Invoke(() =>
             {
                 _closeButtonAnimationMutex.WaitOne();
-                if (CloseWindowButtonText.Width != 60)
+                if (CloseWindowButton.Width != 50)
                 {
                     _closeButtonAnimationMutex.ReleaseMutex();
                     return;
                 }
-                var visibilityChangeAnimation = new DoubleAnimation()
+
+                var buttonSizeChangeAnimation = new DoubleAnimation()
                 {
-                    From = 60,
-                    To = 0,
+                    From = 50,
+                    To = 20,
                     Duration = TimeSpan.FromSeconds(0.3)
                 };
 
-                visibilityChangeAnimation.Completed += (s, ee) =>
+                var buttonTextSizeChangeAnimation = new DoubleAnimation()
+                {
+                    From = 60,
+                    To = 0,
+                    Duration = TimeSpan.FromSeconds(0.1)
+                };
+
+                buttonSizeChangeAnimation.Completed += (s, ee) =>
                 {
                     _closeButtonAnimationMutex.ReleaseMutex();
                     if (CloseWindowButton.IsMouseOver)
@@ -567,11 +584,12 @@ namespace Piexe
                         CloseButtonMouseEnter(this, e);
                     }
                 };
-                CloseWindowButtonText.BeginAnimation(WidthProperty, visibilityChangeAnimation);
+                CloseWindowButton.BeginAnimation(WidthProperty, buttonSizeChangeAnimation);
+                CloseWindowButtonText.BeginAnimation(WidthProperty, buttonTextSizeChangeAnimation);
             });
         }
 
-        private void CloseButtonClick(object sender, MouseButtonEventArgs e)
+        private void CloseWindowButtonClick(object sender, RoutedEventArgs e)
         {
             App.Current.Shutdown();
         }

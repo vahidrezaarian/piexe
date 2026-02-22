@@ -81,6 +81,7 @@ namespace Piexe
         private Point _startPoint;
         private bool _analyze = true;
         private Rect? _currentSelectingRectangle;
+        private readonly Mutex _toolbarAnimationMutex = new(false);
 
         public ScreenshotTaker()
         {
@@ -91,7 +92,7 @@ namespace Piexe
 
             Task.Run(() =>
             {
-                Task.Delay(1000).Wait();
+                Task.Delay(2000).Wait();
                 Dispatcher.Invoke(() =>
                 {
                     BeginToolbarHidingAnimation();
@@ -124,57 +125,102 @@ namespace Piexe
 
         private void BeginToolbarShowingAnimation()
         {
-            CaptureButton.BeginAnimation(HeightProperty, new DoubleAnimation()
+            Dispatcher.Invoke(() =>
             {
-                From = 0,
-                To = 25,
-                Duration = TimeSpan.FromSeconds(0.3)
-            });
-            AnalyzeToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-            {
-                From = 0,
-                To = 25,
-                Duration = TimeSpan.FromSeconds(0.3)
-            });
-            ScreenshotToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-            {
-                From = 0,
-                To = 25,
-                Duration = TimeSpan.FromSeconds(0.3)
-            });
-            ToolBarStack.BeginAnimation(MarginProperty, new ThicknessAnimation()
-            {
-                From = new Thickness(0),
-                To = new Thickness(0, 10, 0, 0),
-                Duration = TimeSpan.FromSeconds(0.3)
+                _toolbarAnimationMutex.WaitOne();
+                if (ScreenshotToggleButton.Height != 0)
+                {
+                    _toolbarAnimationMutex.ReleaseMutex();
+                    return;
+                }
+
+                CaptureButton.BeginAnimation(HeightProperty, new DoubleAnimation()
+                {
+                    From = 0,
+                    To = 25,
+                    Duration = TimeSpan.FromSeconds(0.3)
+                });
+                AnalyzeToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
+                {
+                    From = 0,
+                    To = 25,
+                    Duration = TimeSpan.FromSeconds(0.3)
+                });
+
+                var animation = new DoubleAnimation()
+                {
+                    From = 0,
+                    To = 25,
+                    Duration = TimeSpan.FromSeconds(0.3)
+                };
+
+                animation.Completed += (s, e) =>
+                {
+                    _toolbarAnimationMutex.ReleaseMutex();
+                    if (!ToolBarBorder.IsMouseOver)
+                    {
+                        BeginToolbarHidingAnimation();
+                    }
+                };
+                ScreenshotToggleButton.BeginAnimation(HeightProperty, animation);
+
+                ToolBarStack.BeginAnimation(MarginProperty, new ThicknessAnimation()
+                {
+                    From = new Thickness(0),
+                    To = new Thickness(0, 10, 0, 0),
+                    Duration = TimeSpan.FromSeconds(0.3)
+                });
             });
         }
         
         private void BeginToolbarHidingAnimation()
         {
-            CaptureButton.BeginAnimation(HeightProperty, new DoubleAnimation()
+            Dispatcher.Invoke(() =>
             {
-                From = 25,
-                To = 0,
-                Duration = TimeSpan.FromSeconds(0.3)
-            });
-            AnalyzeToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-            {
-                From = 25,
-                To = 0,
-                Duration = TimeSpan.FromSeconds(0.3)
-            });
-            ScreenshotToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-            {
-                From = 25,
-                To = 0,
-                Duration = TimeSpan.FromSeconds(0.3)
-            });
-            ToolBarStack.BeginAnimation(MarginProperty, new ThicknessAnimation()
-            {
-                From = new Thickness(0, 10, 0, 0),
-                To = new Thickness(0),
-                Duration = TimeSpan.FromSeconds(0.3)
+                _toolbarAnimationMutex.WaitOne();
+                if (ScreenshotToggleButton.Height != 25)
+                {
+                    _toolbarAnimationMutex.ReleaseMutex();
+                    return;
+                }
+
+                CaptureButton.BeginAnimation(HeightProperty, new DoubleAnimation()
+                {
+                    From = 25,
+                    To = 0,
+                    Duration = TimeSpan.FromSeconds(0.3)
+                });
+                AnalyzeToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
+                {
+                    From = 25,
+                    To = 0,
+                    Duration = TimeSpan.FromSeconds(0.3)
+                });
+
+                var animation = new DoubleAnimation()
+                {
+                    From = 25,
+                    To = 0,
+                    Duration = TimeSpan.FromSeconds(0.3)
+                };
+
+                animation.Completed += (s, e) =>
+                {
+                    _toolbarAnimationMutex.ReleaseMutex();
+                    if (ToolBarBorder.IsMouseOver)
+                    {
+                        BeginToolbarShowingAnimation();
+                    }
+                };
+
+                ScreenshotToggleButton.BeginAnimation(HeightProperty, animation);
+
+                ToolBarStack.BeginAnimation(MarginProperty, new ThicknessAnimation()
+                {
+                    From = new Thickness(0, 10, 0, 0),
+                    To = new Thickness(0),
+                    Duration = TimeSpan.FromSeconds(0.3)
+                });
             });
         }
 
@@ -194,24 +240,24 @@ namespace Piexe
             }
         }
 
-        private void CaptureButton_MouseUp(object sender, MouseButtonEventArgs e)
+        private void CaptureButton_Click(object sender, RoutedEventArgs e)
         {
             Hide();
             DoTheJob(ScreenShot.Take(new Rect(Left, Top, Width, Height)));
         }
 
-        private void AnalyzeToggleButton_MouseUp(object sender, MouseButtonEventArgs e)
-        {
-            _analyze = true;
-            AnalyzeToggleButton.Background = Brushes.DeepSkyBlue;
-            ScreenshotToggleButton.Background = Brushes.DarkGray;
-        }
-
-        private void ScreenshotToggleButton_MouseUp(object sender, MouseButtonEventArgs e)
+        private void ScreenshotToggleButton_Click(object sender, RoutedEventArgs e)
         {
             _analyze = false;
             AnalyzeToggleButton.Background = Brushes.DarkGray;
             ScreenshotToggleButton.Background = Brushes.DeepSkyBlue;
+        }
+
+        private void AnalyzeToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            _analyze = true;
+            AnalyzeToggleButton.Background = Brushes.DeepSkyBlue;
+            ScreenshotToggleButton.Background = Brushes.DarkGray;
         }
 
         private void ResetSelection()

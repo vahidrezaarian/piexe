@@ -31,19 +31,103 @@
                 <DropShadowEffect Color="CornflowerBlue" Direction="0" ShadowDepth="0" BlurRadius="10" Opacity="1"/>
             </Border.Effect>
         </Border>
-        <Border x:Name="ToolBarBorder" MinHeight="3" MinWidth="60" Background="#55769899" BorderBrush="Transparent" CornerRadius="0,0,10,10" Padding="5"  HorizontalAlignment="Center" VerticalAlignment="Top" Cursor="Arrow">
+        <Border x:Name="ToolBarBorder" MinHeight="3" MinWidth="60" Background="#202020" BorderBrush="Transparent" CornerRadius="0,0,10,10" Padding="5"  HorizontalAlignment="Center" VerticalAlignment="Top" Cursor="Arrow">
             <StackPanel x:Name="ToolBarStack" Orientation="Horizontal">
-                <Border x:Name="AnalyzeToggleButton" Background="DeepSkyBlue" BorderBrush="Transparent" Height="25" CornerRadius="12,0,0,12" Padding="10,1,10,1" MouseUp="AnalyzeToggleButton_MouseUp">
-                    <TextBlock Text="Analyze" HorizontalAlignment="Center" Foreground="White" VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Print"/>
-                </Border>
+                <Button x:Name="AnalyzeToggleButton" Background="DeepSkyBlue" BorderBrush="Transparent" Height="25" Click="AnalyzeToggleButton_Click">
+                    <TextBlock Text="Analyze" HorizontalAlignment="Center" Margin="10,1,10,1" Foreground="White" VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Print"/>
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type Button}">
+                                        <Border x:Name="Border"
+                                                BorderBrush="DimGray"
+                                                Background="{TemplateBinding Background}"
+                                                BorderThickness="1,1,0,1"
+                                                Height="25"
+                                                CornerRadius="12,0,0,12"
+                                                SnapsToDevicePixels="True">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"
+                                                              Content="{TemplateBinding Content}"
+                                                              ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                        </Border>
 
-                <Border x:Name="ScreenshotToggleButton" Margin="0,0,10,0" Background="DarkGray" BorderBrush="Transparent" Height="25" CornerRadius="0,12,12,0" Padding="10,1,10,1" MouseUp="ScreenshotToggleButton_MouseUp">
-                    <TextBlock Text="Screenshot" HorizontalAlignment="Center" Foreground="White" VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Print"/>
-                </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="LightSlateGray"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
 
-                <Border x:Name="CaptureButton" Background="Purple" BorderBrush="Transparent" CornerRadius="12" Height="25" Padding="10,1,10,1" HorizontalAlignment="Center" VerticalAlignment="Center" MouseUp="CaptureButton_MouseUp">
-                    <TextBlock Text="Capture the whole screen" HorizontalAlignment="Center" Foreground="White" VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Print"/>
-                </Border>
+                <Button x:Name="ScreenshotToggleButton" Margin="0,0,10,0" Background="DarkGray" BorderBrush="Transparent" Height="25" Click="ScreenshotToggleButton_Click">
+                    <TextBlock Text="Screenshot" HorizontalAlignment="Center" Foreground="White" Margin="10,1,10,1" VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Print"/>
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type Button}">
+                                        <Border x:Name="Border"
+                                                BorderBrush="DimGray"
+                                                Background="{TemplateBinding Background}"
+                                                BorderThickness="0,1,1,1"
+                                                Height="25"
+                                                CornerRadius="0,12,12,0"
+                                                SnapsToDevicePixels="True">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"
+                                                                  Content="{TemplateBinding Content}"
+                                                                  ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                        </Border>
+
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="LightSlateGray"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <Button x:Name="CaptureButton" Background="Coral" BorderBrush="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center" Click="CaptureButton_Click">
+                    <TextBlock Text="Capture the whole screen" HorizontalAlignment="Center" Margin="10,1,10,1" Foreground="White" VerticalAlignment="Center" TextAlignment="Center" FontFamily="Segoe Print"/>
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type Button}">
+                                        <Border x:Name="Border"
+                                                BorderBrush="DimGray"
+                                                Background="Coral"
+                                                BorderThickness="1"
+                                                Height="25"
+                                                CornerRadius="12"
+                                                SnapsToDevicePixels="True">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"
+                                                              Content="{TemplateBinding Content}"
+                                                              ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                        </Border>
+
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="LightSlateGray"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
             </StackPanel>
         </Border>
     </Grid>

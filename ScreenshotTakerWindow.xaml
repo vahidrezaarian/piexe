@@ -24,7 +24,7 @@
         </Rectangle>
         <Path x:Name="SelectingRectangleStroke"
               Fill="Transparent"
-              Stroke="Red" StrokeThickness="1"
+              Stroke="White" StrokeThickness="1"
               Visibility="Collapsed"/>
         <Border BorderBrush="Black" BorderThickness="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Padding="10">
             <Border.Effect>

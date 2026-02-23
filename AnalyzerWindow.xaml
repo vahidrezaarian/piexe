@@ -19,67 +19,79 @@
     <Window.Background>
         <SolidColorBrush Color="Transparent"/>
     </Window.Background>
-    <Border x:Name="WindowsBorder" CornerRadius="15" Background="Transparent" BorderThickness="1" BorderBrush="LightGray">
-        <Grid x:Name="MainWindowGrid">
+    <Border x:Name="WindowBorder" CornerRadius="15" Background="#202020" BorderThickness="1" BorderBrush="LightGray">
+        <Grid x:Name="WindowGrid">
             <Grid.RowDefinitions>
-                <RowDefinition/>
+                <RowDefinition x:Name="WindowTitleRow" Height="45"/>
+                <RowDefinition x:Name="WindowContentRow" Height="*"/>
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Background="#202020" BorderThickness="0" CornerRadius="15"/>
+            <Grid Grid.Row="0" x:Name="WindowTitleGrid">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="70"/>
+                </Grid.ColumnDefinitions>
 
-            <Grid Grid.Row="0">
+                <TextBlock Grid.Column="0" x:Name="WindowTitleText" Text="Piexe" Foreground="AliceBlue" FontFamily="Segoe UI" 
+                           VerticalAlignment="Center" HorizontalAlignment="Left" Margin="15,0,0,0" FontSize="17" FontWeight="SemiBold"/>
+
+                <Button Grid.Column="1" x:Name="CloseWindowButton" Height="20" Width="20" Background="LightGray" Padding="10,0,10,0" 
+                        HorizontalAlignment="Right" Margin="0,0,14.5,0"  MouseLeave="CloseButtonMouseLeave"
+                        VerticalAlignment="Center" MouseEnter="CloseButtonMouseEnter" Click="CloseWindowButtonClick">  
+                    <TextBlock x:Name="CloseWindowButtonText" Text="Close" HorizontalAlignment="Center" Width="0" FontFamily="Segoe UI" 
+                               VerticalAlignment="Center" TextAlignment="Center" FontWeight="SemiBold" Foreground="White"/>
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type Button}">
+                                        <Border x:Name="Border"
+                                     Background="{TemplateBinding Background}"
+                                     BorderThickness="1"
+                                     Height="{TemplateBinding Height}"
+                                     Width="{TemplateBinding Width}"
+                                     CornerRadius="10"
+                                     SnapsToDevicePixels="True">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Content="{TemplateBinding Content}"
+                                                       ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                        </Border>
+
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="Red"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </Grid>
+
+            <Grid Grid.Row="1" x:Name="WindowContentGrid">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="45"/>
-                    <RowDefinition Height="*"/>
+                    <RowDefinition x:Name="WindowContentScrollViewRow" Height="*"/>
+                    <RowDefinition x:Name="WindowContentDeviderRow" Height="1"/>
+                    <RowDefinition x:Name="WindowContentMessagingRow" Height="35"/>
                 </Grid.RowDefinitions>
 
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="70"/>
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Grid.Column="0" x:Name="WindowTitle" Text="Piexe" Foreground="AliceBlue" FontFamily="Segoe Print" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="15,0,0,0" FontSize="17" FontWeight="SemiBold"/>
-
-                    <Button Grid.Column="1" x:Name="CloseWindowButton" Height="20" Width="20" Background="LightGray" Padding="10,0,10,0" 
-                            HorizontalAlignment="Right" Margin="0,0,14.5,0"  MouseLeave="CloseButtonMouseLeave"
-                            VerticalAlignment="Center" MouseEnter="CloseButtonMouseEnter" Click="CloseWindowButtonClick">
-                        <TextBlock x:Name="CloseWindowButtonText" Text="Close" HorizontalAlignment="Center" Width="0" 
-                                   VerticalAlignment="Center" TextAlignment="Center" FontWeight="SemiBold" Foreground="White"/>
-                        <Button.Style>
-                            <Style TargetType="{x:Type Button}">
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="{x:Type Button}">
-                                            <Border x:Name="Border"
-                                                    Background="{TemplateBinding Background}"
-                                                    BorderThickness="1"
-                                                    Height="{TemplateBinding Height}"
-                                                    Width="{TemplateBinding Width}"
-                                                    CornerRadius="10"
-                                                    SnapsToDevicePixels="True">
-                                                <ContentPresenter HorizontalAlignment="Center"
-                                                                      VerticalAlignment="Center"
-                                                                      Content="{TemplateBinding Content}"
-                                                                      ContentTemplate="{TemplateBinding ContentTemplate}"/>
-                                            </Border>
-
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="Border" Property="Background" Value="Red"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                </Grid>
-
-                <ScrollViewer Grid.Row="1" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top" ScrollViewer.VerticalScrollBarVisibility="Hidden" Margin="15">
+                <ScrollViewer Grid.Row="0" x:Name="WindowContentScrollView" HorizontalAlignment="Left" VerticalAlignment="Top" ScrollViewer.VerticalScrollBarVisibility="Hidden" Margin="15">
                     <StackPanel x:Name="MainContainer" HorizontalAlignment="Left" VerticalAlignment="Top"/>
                 </ScrollViewer>
+
+                <Border Grid.Row="1" Height="1" Background="LightGray" CornerRadius="0.5" HorizontalAlignment="Stretch" Margin="10,0,10,0"/>
+
+                <TextBlock Grid.Row="2" x:Name="WindowMessagingTextBlock" Text="Drag and drop images to scan" Foreground="White" 
+                           HorizontalAlignment="Center" FontWeight="SemiBold" FontFamily="Segoe UI" Margin="10" VerticalAlignment="Center"/>
+            </Grid>
+
+            <Grid Grid.Row="1" x:Name="DropMessage" Visibility="Collapsed">
+                <Border CornerRadius="15" BorderThickness="0" Background="Black" Opacity="0.5" Visibility="Visible"/>
+
+                <TextBlock Text="Drop to scan" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontFamily="Segoe UI" FontWeight="Bold" Margin="40" Visibility="Visible"/>
             </Grid>
         </Grid>
     </Border>

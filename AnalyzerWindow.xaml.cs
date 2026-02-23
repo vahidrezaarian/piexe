@@ -622,6 +622,25 @@ namespace Piexe
             base.OnKeyDown(e);
         }
 
+        private void ShowDropMessage()
+        {
+            var blur = new BlurEffect
+            {
+                Radius = 12,
+                RenderingBias = RenderingBias.Performance
+            };
+            WindowContentGrid.Effect = blur;
+            DropMessage.Visibility = Visibility.Visible;
+            WindowContentGrid.IsEnabled = false;
+        }
+
+        private void HideDropMessage()
+        {
+            WindowContentGrid.Effect = null;
+            DropMessage.Visibility = Visibility.Collapsed;
+            WindowContentGrid.IsEnabled = true;
+        }
+
         private void Window_PreviewDragEnter(object sender, DragEventArgs e)
         {
             bool canDrop = false;
@@ -646,33 +665,58 @@ namespace Piexe
 
             if (canDrop)
             {
-                var blur = new BlurEffect
-                {
-                    Radius = 12,
-                    RenderingBias = RenderingBias.Performance
-                };
-                MainWindowGrid.Effect = blur;
+                ShowDropMessage();
             }
         }
 
         private void Window_PreviewDragLeave(object sender, DragEventArgs e)
         {
             e.Handled = true;
-            MainWindowGrid.Effect = null;
+            HideDropMessage();
+        }
+
+        private void ShowError(string text)
+        {
+            WindowMessagingTextBlock.Text = text;
+            WindowMessagingTextBlock.Foreground = Brushes.Red;
+            Task.Run(() =>
+            {
+                Task.Delay(5000).Wait();
+                Dispatcher.Invoke(() =>
+                {
+                    WindowMessagingTextBlock.Text = "Drag and drop images to scan";
+                    WindowMessagingTextBlock.Foreground = Brushes.White;
+                });
+            });
         }
 
         private void Window_PreviewDrop(object sender, DragEventArgs e)
         {
+            HideDropMessage();
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                var scannedItems = new List<AnalyzedItem>();
 
                 foreach (var file in files)
                 {
                     if (file.IsImageFile())
                     {
-                        // TODO: Open the analyzing window for the dropped picture
+                        scannedItems.AddRange(PictureScanner.Scan(file));
                     }
+                }
+
+                if (scannedItems.Count() > 0)
+                {
+                    MainContainer.Children.Clear();
+                    foreach (var item in scannedItems)
+                    {
+                        MainContainer.Children.Add(CreateDetectedElement(item.Type, item.Value.Trim()));
+                    }
+                }
+                else
+                {
+                    ShowError("No QR codes, barcodes or text detected in the dropped image(s).");
                 }
             }
             e.Handled = true;

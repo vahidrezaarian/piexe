@@ -1,353 +1,284 @@
-﻿using System.Runtime.InteropServices;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using Piexe.Utilities;
 
-namespace Piexe
+namespace Piexe;
+
+public partial class ScreenshotTaker : Window
 {
-    internal class Natives
+    private bool _mouseDown = false;
+    private bool _selectionAborted = false;
+    private Point _startPoint;
+    private bool _analyze = true;
+    private Rect? _currentSelectingRectangle;
+    private readonly Mutex _toolbarAnimationMutex = new(false);
+
+    public ScreenshotTaker()
     {
-        public static RECT GetMonitorBoundsAtCursor(bool useWorkArea)
+        var px = Natives.GetMonitorBoundsAtCursor(useWorkArea: false);
+
+        InitializeComponent();
+        InitializeToolbarAnimations();
+
+        Task.Run(() =>
         {
-            GetCursorPos(out POINT p);
-            IntPtr hMon = MonitorFromPoint(p, MONITOR_DEFAULTTONEAREST);
-
-            var mi = new MONITORINFO();
-            mi.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
-            GetMonitorInfo(hMon, ref mi);
-
-            return useWorkArea ? mi.rcWork : mi.rcMonitor;
-        }
-
-        private const int MONITOR_DEFAULTTONEAREST = 2;
-
-        [DllImport("user32.dll")]
-        private static extern bool GetCursorPos(out POINT lpPoint);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr MonitorFromPoint(POINT pt, int dwFlags);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct POINT { public int X; public int Y; }
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct RECT { public int Left, Top, Right, Bottom; }
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-        private struct MONITORINFO
-        {
-            public int cbSize;
-            public RECT rcMonitor;
-            public RECT rcWork;
-            public uint dwFlags;
-        }
-    }
-
-    internal static class ScreenShot
-    {
-        public static System.Drawing.Bitmap Take(Rect region)
-        {
-            double dpiScale = VisualTreeHelper.GetDpi(new DrawingVisual()).DpiScaleX;
-
-            int left = (int)(region.Left * dpiScale);
-            int top = (int)(region.Top * dpiScale);
-            int width = (int)(region.Width * dpiScale);
-            int height = (int)(region.Height * dpiScale);
-
-            System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(width, height);
-
-            using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(bmp))
-            {
-                g.CopyFromScreen(
-                    left,
-                    top,
-                    0, 0,
-                    new System.Drawing.Size(width, height),
-                    System.Drawing.CopyPixelOperation.SourceCopy);
-            }
-
-            return bmp;
-        }
-    }
-
-    public partial class ScreenshotTaker : Window
-    {
-        private bool _mouseDown = false;
-        private bool _selectionAborted = false;
-        private Point _startPoint;
-        private bool _analyze = true;
-        private Rect? _currentSelectingRectangle;
-        private readonly Mutex _toolbarAnimationMutex = new(false);
-
-        public ScreenshotTaker()
-        {
-            var px = Natives.GetMonitorBoundsAtCursor(useWorkArea: false);
-
-            InitializeComponent();
-            InitializeToolbarAnimations();
-
-            Task.Run(() =>
-            {
-                Task.Delay(2000).Wait();
-                Dispatcher.Invoke(() =>
-                {
-                    BeginToolbarHidingAnimation();
-                });
-            });
-
-            var m = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
-                ?? Matrix.Identity;
-
-            var topLeft = m.Transform(new Point(px.Left, px.Top));
-            var bottomRight = m.Transform(new Point(px.Right, px.Bottom));
-
-            Left = topLeft.X;
-            Top = topLeft.Y;
-            Width = bottomRight.X - topLeft.X;
-            Height = bottomRight.Y - topLeft.Y;
-        }
-
-        private void InitializeToolbarAnimations()
-        {
-            ToolBarBorder.MouseEnter += (s, e) =>
-            {
-                BeginToolbarShowingAnimation();
-            };
-            ToolBarBorder.MouseLeave += (s, e) =>
+            Task.Delay(2000).Wait();
+            Dispatcher.Invoke(() =>
             {
                 BeginToolbarHidingAnimation();
+            });
+        });
+
+        var m = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
+            ?? Matrix.Identity;
+
+        var topLeft = m.Transform(new Point(px.Left, px.Top));
+        var bottomRight = m.Transform(new Point(px.Right, px.Bottom));
+
+        Left = topLeft.X;
+        Top = topLeft.Y;
+        Width = bottomRight.X - topLeft.X;
+        Height = bottomRight.Y - topLeft.Y;
+    }
+
+    private void InitializeToolbarAnimations()
+    {
+        ToolBarBorder.MouseEnter += (s, e) =>
+        {
+            BeginToolbarShowingAnimation();
+        };
+        ToolBarBorder.MouseLeave += (s, e) =>
+        {
+            BeginToolbarHidingAnimation();
+        };
+    }
+
+    private void BeginToolbarShowingAnimation()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _toolbarAnimationMutex.WaitOne();
+            if (ScreenshotToggleButton.Height != 0)
+            {
+                _toolbarAnimationMutex.ReleaseMutex();
+                return;
+            }
+
+            CaptureButton.BeginAnimation(HeightProperty, new DoubleAnimation()
+            {
+                From = 0,
+                To = 25,
+                Duration = TimeSpan.FromSeconds(0.3)
+            });
+            AnalyzeToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
+            {
+                From = 0,
+                To = 25,
+                Duration = TimeSpan.FromSeconds(0.3)
+            });
+
+            var animation = new DoubleAnimation()
+            {
+                From = 0,
+                To = 25,
+                Duration = TimeSpan.FromSeconds(0.3)
             };
-        }
 
-        private void BeginToolbarShowingAnimation()
-        {
-            Dispatcher.Invoke(() =>
+            animation.Completed += (s, e) =>
             {
-                _toolbarAnimationMutex.WaitOne();
-                if (ScreenshotToggleButton.Height != 0)
+                _toolbarAnimationMutex.ReleaseMutex();
+                if (!ToolBarBorder.IsMouseOver)
                 {
-                    _toolbarAnimationMutex.ReleaseMutex();
-                    return;
+                    BeginToolbarHidingAnimation();
                 }
+            };
+            ScreenshotToggleButton.BeginAnimation(HeightProperty, animation);
 
-                CaptureButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-                {
-                    From = 0,
-                    To = 25,
-                    Duration = TimeSpan.FromSeconds(0.3)
-                });
-                AnalyzeToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-                {
-                    From = 0,
-                    To = 25,
-                    Duration = TimeSpan.FromSeconds(0.3)
-                });
-
-                var animation = new DoubleAnimation()
-                {
-                    From = 0,
-                    To = 25,
-                    Duration = TimeSpan.FromSeconds(0.3)
-                };
-
-                animation.Completed += (s, e) =>
-                {
-                    _toolbarAnimationMutex.ReleaseMutex();
-                    if (!ToolBarBorder.IsMouseOver)
-                    {
-                        BeginToolbarHidingAnimation();
-                    }
-                };
-                ScreenshotToggleButton.BeginAnimation(HeightProperty, animation);
-
-                ToolBarStack.BeginAnimation(MarginProperty, new ThicknessAnimation()
-                {
-                    From = new Thickness(0),
-                    To = new Thickness(0, 10, 0, 0),
-                    Duration = TimeSpan.FromSeconds(0.3)
-                });
-            });
-        }
-        
-        private void BeginToolbarHidingAnimation()
-        {
-            Dispatcher.Invoke(() =>
+            ToolBarStack.BeginAnimation(MarginProperty, new ThicknessAnimation()
             {
-                _toolbarAnimationMutex.WaitOne();
-                if (ScreenshotToggleButton.Height != 25)
+                From = new Thickness(0),
+                To = new Thickness(0, 10, 0, 0),
+                Duration = TimeSpan.FromSeconds(0.3)
+            });
+        });
+    }
+
+    private void BeginToolbarHidingAnimation()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _toolbarAnimationMutex.WaitOne();
+            if (ScreenshotToggleButton.Height != 25)
+            {
+                _toolbarAnimationMutex.ReleaseMutex();
+                return;
+            }
+
+            CaptureButton.BeginAnimation(HeightProperty, new DoubleAnimation()
+            {
+                From = 25,
+                To = 0,
+                Duration = TimeSpan.FromSeconds(0.3)
+            });
+            AnalyzeToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
+            {
+                From = 25,
+                To = 0,
+                Duration = TimeSpan.FromSeconds(0.3)
+            });
+
+            var animation = new DoubleAnimation()
+            {
+                From = 25,
+                To = 0,
+                Duration = TimeSpan.FromSeconds(0.3)
+            };
+
+            animation.Completed += (s, e) =>
+            {
+                _toolbarAnimationMutex.ReleaseMutex();
+                if (ToolBarBorder.IsMouseOver)
                 {
-                    _toolbarAnimationMutex.ReleaseMutex();
-                    return;
+                    BeginToolbarShowingAnimation();
                 }
+            };
 
-                CaptureButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-                {
-                    From = 25,
-                    To = 0,
-                    Duration = TimeSpan.FromSeconds(0.3)
-                });
-                AnalyzeToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-                {
-                    From = 25,
-                    To = 0,
-                    Duration = TimeSpan.FromSeconds(0.3)
-                });
+            ScreenshotToggleButton.BeginAnimation(HeightProperty, animation);
 
-                var animation = new DoubleAnimation()
-                {
-                    From = 25,
-                    To = 0,
-                    Duration = TimeSpan.FromSeconds(0.3)
-                };
-
-                animation.Completed += (s, e) =>
-                {
-                    _toolbarAnimationMutex.ReleaseMutex();
-                    if (ToolBarBorder.IsMouseOver)
-                    {
-                        BeginToolbarShowingAnimation();
-                    }
-                };
-
-                ScreenshotToggleButton.BeginAnimation(HeightProperty, animation);
-
-                ToolBarStack.BeginAnimation(MarginProperty, new ThicknessAnimation()
-                {
-                    From = new Thickness(0, 10, 0, 0),
-                    To = new Thickness(0),
-                    Duration = TimeSpan.FromSeconds(0.3)
-                });
+            ToolBarStack.BeginAnimation(MarginProperty, new ThicknessAnimation()
+            {
+                From = new Thickness(0, 10, 0, 0),
+                To = new Thickness(0),
+                Duration = TimeSpan.FromSeconds(0.3)
             });
-        }
+        });
+    }
 
-        private void DoTheJob(System.Drawing.Bitmap image)
+    private void DoTheJob(System.Drawing.Bitmap image)
+    {
+        if (_analyze)
         {
-            if (_analyze)
-            {
-                var analyzeWindow = new MainWindow(image);
-                analyzeWindow.Show();
-                analyzeWindow.Activate();
-                analyzeWindow.Focus();
-            }
-            else
-            {
-                image.Save($"{Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)}\\Screenshot {DateTime.Now:ddMMyyyy-hhmmssffff}.png");
-                App.Current.Shutdown();
-            }
+            var analyzeWindow = new MainWindow(image);
+            analyzeWindow.Show();
+            analyzeWindow.Activate();
+            analyzeWindow.Focus();
+        }
+        else
+        {
+            image.Save($"{Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)}\\Screenshot {DateTime.Now:ddMMyyyy-hhmmssffff}.png");
+            App.Current.Shutdown();
+        }
+    }
+
+    private void CaptureButton_Click(object sender, RoutedEventArgs e)
+    {
+        Hide();
+        DoTheJob(ScreenShot.Take(new Rect(Left, Top, Width, Height)));
+    }
+
+    private void ScreenshotToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        _analyze = false;
+        AnalyzeToggleButton.Background = Brushes.DarkGray;
+        ScreenshotToggleButton.Background = Brushes.DeepSkyBlue;
+    }
+
+    private void AnalyzeToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        _analyze = true;
+        AnalyzeToggleButton.Background = Brushes.DeepSkyBlue;
+        ScreenshotToggleButton.Background = Brushes.DarkGray;
+    }
+
+    private void ResetSelection()
+    {
+        _selectionAborted = true;
+        SelectingRectangle.Clip = new RectangleGeometry(new Rect(0, 0, Width, Height));
+        ToolBarBorder.Visibility = Visibility.Visible;
+        _currentSelectingRectangle = null;
+        SelectingRectangleStroke.Visibility = Visibility.Collapsed;
+    }
+
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        if (CaptureButton.IsMouseOver || AnalyzeToggleButton.IsMouseOver || ScreenshotToggleButton.IsMouseOver)
+        {
+            return;
         }
 
-        private void CaptureButton_Click(object sender, RoutedEventArgs e)
+        _mouseDown = true;
+        _selectionAborted = false;
+        _startPoint = e.GetPosition(this);
+        SelectingRectangle.Visibility = Visibility.Visible;
+        ToolBarBorder.Visibility = Visibility.Collapsed;
+
+        base.OnMouseDown(e);
+    }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        if (CaptureButton.IsMouseOver || AnalyzeToggleButton.IsMouseOver || ScreenshotToggleButton.IsMouseOver)
+        {
+            return;
+        }
+
+        _mouseDown = false;
+        if (!_selectionAborted)
         {
             Hide();
-            DoTheJob(ScreenShot.Take(new Rect(Left, Top, Width, Height)));
+            DoTheJob(ScreenShot.Take(new Rect(_startPoint, e.GetPosition(this))));
         }
+        base.OnMouseUp(e);
+    }
 
-        private void ScreenshotToggleButton_Click(object sender, RoutedEventArgs e)
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        if (_mouseDown && !_selectionAborted)
         {
-            _analyze = false;
-            AnalyzeToggleButton.Background = Brushes.DarkGray;
-            ScreenshotToggleButton.Background = Brushes.DeepSkyBlue;
-        }
+            _currentSelectingRectangle = new Rect(_startPoint, e.GetPosition(this));
 
-        private void AnalyzeToggleButton_Click(object sender, RoutedEventArgs e)
-        {
-            _analyze = true;
-            AnalyzeToggleButton.Background = Brushes.DeepSkyBlue;
-            ScreenshotToggleButton.Background = Brushes.DarkGray;
-        }
+            var wholeScreenGeometry = new RectangleGeometry(new Rect(0, 0, Width, Height));
+            var selectedGeometry = new RectangleGeometry(_currentSelectingRectangle.Value);
 
-        private void ResetSelection()
-        {
-            _selectionAborted = true;
-            SelectingRectangle.Clip = new RectangleGeometry(new Rect(0, 0, Width, Height));
-            ToolBarBorder.Visibility = Visibility.Visible;
-            _currentSelectingRectangle = null;
-            SelectingRectangleStroke.Visibility = Visibility.Collapsed;
-        }
-
-        protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
-        {
-            if (CaptureButton.IsMouseOver || AnalyzeToggleButton.IsMouseOver || ScreenshotToggleButton.IsMouseOver)
+            SelectingRectangle.Clip = new CombinedGeometry(wholeScreenGeometry, selectedGeometry)
             {
-                return;
-            }
+                GeometryCombineMode = GeometryCombineMode.Xor
+            };
 
-            _mouseDown = true;
-            _selectionAborted = false;
-            _startPoint = e.GetPosition(this);
-            SelectingRectangle.Visibility = Visibility.Visible;
-            ToolBarBorder.Visibility = Visibility.Collapsed;
-
-            base.OnMouseDown(e);
-        }
-
-        protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
-        {
-            if (CaptureButton.IsMouseOver || AnalyzeToggleButton.IsMouseOver || ScreenshotToggleButton.IsMouseOver)
+            SelectingRectangleStroke.Data = new CombinedGeometry(wholeScreenGeometry, selectedGeometry)
             {
-                return;
-            }
+                GeometryCombineMode = GeometryCombineMode.Exclude
+            };
 
-            _mouseDown = false;
-            if (!_selectionAborted)
-            {
-                Hide();
-                DoTheJob(ScreenShot.Take(new Rect(_startPoint, e.GetPosition(this))));
-            }
-            base.OnMouseUp(e);
+            SelectingRectangleStroke.Visibility = Visibility.Visible;
         }
+        base.OnMouseMove(e);
+    }
 
-        protected override void OnMouseMove(MouseEventArgs e)
-        {
-            if (_mouseDown && !_selectionAborted)
-            {
-                _currentSelectingRectangle = new Rect(_startPoint, e.GetPosition(this));
-
-                var wholeScreenGeometry = new RectangleGeometry(new Rect(0, 0, Width, Height));
-                var selectedGeometry = new RectangleGeometry(_currentSelectingRectangle.Value);
-
-                SelectingRectangle.Clip = new CombinedGeometry(wholeScreenGeometry, selectedGeometry)
-                {
-                    GeometryCombineMode = GeometryCombineMode.Xor
-                };
-
-                SelectingRectangleStroke.Data = new CombinedGeometry(wholeScreenGeometry, selectedGeometry)
-                {
-                    GeometryCombineMode = GeometryCombineMode.Exclude
-                };
-
-                SelectingRectangleStroke.Visibility = Visibility.Visible;
-            }
-            base.OnMouseMove(e);
-        }
-
-        protected override void OnKeyUp(KeyEventArgs e)
-        {
-            if (e.Key == Key.Escape)
-            {
-                if (_mouseDown)
-                {
-                    ResetSelection();
-                }
-                else
-                {
-                    App.Current.Shutdown();
-                }
-            }
-            base.OnKeyUp(e);
-        }
-
-        protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
         {
             if (_mouseDown)
             {
                 ResetSelection();
             }
-            base.OnMouseRightButtonDown(e);
+            else
+            {
+                App.Current.Shutdown();
+            }
         }
+        base.OnKeyUp(e);
+    }
+
+    protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
+    {
+        if (_mouseDown)
+        {
+            ResetSelection();
+        }
+        base.OnMouseRightButtonDown(e);
     }
 }

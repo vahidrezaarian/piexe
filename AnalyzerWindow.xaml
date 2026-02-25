@@ -19,7 +19,7 @@
     <Window.Background>
         <SolidColorBrush Color="Transparent"/>
     </Window.Background>
-    <Border x:Name="WindowBorder" CornerRadius="15" Background="#202020" BorderThickness="1" BorderBrush="LightGray">
+    <Border x:Name="WindowBorder" CornerRadius="15" Background="#202020" BorderThickness="1" BorderBrush="#FAFAFA">
         <Grid x:Name="WindowGrid">
             <Grid.RowDefinitions>
                 <RowDefinition x:Name="WindowTitleRow" Height="45"/>
@@ -32,14 +32,14 @@
                     <ColumnDefinition Width="70"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0" x:Name="WindowTitleText" Text="Piexe" Foreground="AliceBlue" FontFamily="Segoe UI" 
+                <TextBlock Grid.Column="0" x:Name="WindowTitleText" Text="Piexe" Foreground="#FAFAFA" FontFamily="Segoe UI" 
                            VerticalAlignment="Center" HorizontalAlignment="Left" Margin="15,0,0,0" FontSize="17" FontWeight="SemiBold"/>
 
-                <Button Grid.Column="1" x:Name="CloseWindowButton" Height="20" Width="20" Background="LightGray" Padding="10,0,10,0" 
+                <Button Grid.Column="1" x:Name="CloseWindowButton" Height="20" Width="20" Background="#FAFAFA" Padding="10,0,10,0" 
                         HorizontalAlignment="Right" Margin="0,0,14.5,0"  MouseLeave="CloseButtonMouseLeave"
                         VerticalAlignment="Center" MouseEnter="CloseButtonMouseEnter" Click="CloseWindowButtonClick">  
                     <TextBlock x:Name="CloseWindowButtonText" Text="Close" HorizontalAlignment="Center" Width="0" FontFamily="Segoe UI" 
-                               VerticalAlignment="Center" TextAlignment="Center" FontWeight="SemiBold" Foreground="White"/>
+                               VerticalAlignment="Center" TextAlignment="Center" FontWeight="SemiBold" Foreground="#FAFAFA"/>
                     <Button.Style>
                         <Style TargetType="{x:Type Button}">
                             <Setter Property="Template">
@@ -82,16 +82,16 @@
                     <StackPanel x:Name="MainContainer" HorizontalAlignment="Left" VerticalAlignment="Top"/>
                 </ScrollViewer>
 
-                <Border Grid.Row="1" Height="1" Background="LightGray" CornerRadius="0.5" HorizontalAlignment="Stretch" Margin="10,0,10,0"/>
+                <Border Grid.Row="1" x:Name="WindowDevider" Height="1" Background="#FAFAFA" CornerRadius="0.5" HorizontalAlignment="Stretch" Margin="10,0,10,0"/>
 
-                <TextBlock Grid.Row="2" x:Name="WindowMessagingTextBlock" Text="Drag and drop images to scan" Foreground="White" 
+                <TextBlock Grid.Row="2" x:Name="WindowMessagingTextBlock" Text="Drag and drop images to scan" Foreground="#FAFAFA" 
                            HorizontalAlignment="Center" FontWeight="SemiBold" FontFamily="Segoe UI" Margin="10" VerticalAlignment="Center"/>
             </Grid>
 
             <Grid Grid.Row="1" x:Name="DropMessage" Visibility="Collapsed">
                 <Border CornerRadius="15" BorderThickness="0" Background="Black" Opacity="0.5" Visibility="Visible"/>
 
-                <TextBlock Text="Drop to scan" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontFamily="Segoe UI" FontWeight="Bold" Margin="40" Visibility="Visible"/>
+                <TextBlock Text="Drop to scan" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FAFAFA" FontFamily="Segoe UI" FontWeight="Bold" Margin="40" Visibility="Visible"/>
             </Grid>
         </Grid>
     </Border>

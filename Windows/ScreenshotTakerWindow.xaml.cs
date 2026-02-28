@@ -11,7 +11,6 @@ public partial class ScreenshotTaker : Window
     private bool _mouseOrTouchDown = false;
     private bool _selectionAborted = false;
     private Point _startPoint;
-    private bool _analyze = true;
     private Rect? _currentSelectingRectangle;
     private bool _isToolbarVisible;
     private readonly Mutex _toolbarAnimationMutex = new(false);
@@ -50,6 +49,8 @@ public partial class ScreenshotTaker : Window
 
     private void InitializeToolbar()
     {
+        InitializePageIteratorCombobox();
+
         ToolBarBorder.MouseEnter += (s, e) =>
         {
             BeginToolbarShowingAnimation();
@@ -60,7 +61,8 @@ public partial class ScreenshotTaker : Window
         };
         ToolBarBorder.TouchUp += (s, e) =>
         {
-            if (CaptureButton.AreAnyTouchesOver || AnalyzeToggleButton.AreAnyTouchesOver || ScreenshotToggleButton.AreAnyTouchesOver)
+            if (CaptureButton.AreAnyTouchesOver || AnalyzeToggleButton.AreAnyTouchesOver || ScreenshotToggleButton.AreAnyTouchesOver ||
+                PageIteratorSelectionComboBox.AreAnyTouchesOver)
             {
                 return;
             }
@@ -75,29 +77,26 @@ public partial class ScreenshotTaker : Window
         };
     }
 
+    private void InitializePageIteratorCombobox()
+    {
+        var supportedLevels = new List<string>
+        {
+            "Block", "Paragraph", "Word", "Line", "Symbol"
+        };
+
+        PageIteratorSelectionComboBox.ItemsSource = supportedLevels;
+    }
+
     private void BeginToolbarShowingAnimation(bool checkHoverAtComplete = true)
     {
         Dispatcher.Invoke(() =>
         {
             _toolbarAnimationMutex.WaitOne();
-            if (ScreenshotToggleButton.Height != 0)
+            if (ToolbardButtonsGrid.Height != 0)
             {
                 _toolbarAnimationMutex.ReleaseMutex();
                 return;
             }
-
-            CaptureButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-            {
-                From = 0,
-                To = 25,
-                Duration = TimeSpan.FromSeconds(0.3)
-            });
-            AnalyzeToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-            {
-                From = 0,
-                To = 25,
-                Duration = TimeSpan.FromSeconds(0.3)
-            });
 
             var animation = new DoubleAnimation()
             {
@@ -105,6 +104,7 @@ public partial class ScreenshotTaker : Window
                 To = 25,
                 Duration = TimeSpan.FromSeconds(0.3)
             };
+            ToolbardButtonsGrid.BeginAnimation(HeightProperty, animation);
 
             animation.Completed += (s, e) =>
             {
@@ -115,21 +115,20 @@ public partial class ScreenshotTaker : Window
                 }
                 _isToolbarVisible = true;
             };
-            ScreenshotToggleButton.BeginAnimation(HeightProperty, animation);
 
             ToolBarStack.BeginAnimation(MarginProperty, new ThicknessAnimation()
             {
-                From = new Thickness(0),
-                To = new Thickness(0, 10, 0, 0),
+                From = new Thickness(5),
+                To = new Thickness(10),
                 Duration = TimeSpan.FromSeconds(0.3)
             });
 
-            if (_analyze)
+            if (AnalyzeToggleButton.IsChecked == true)
             {
-                IteratorLevelSelectionStack.BeginAnimation(HeightProperty, new DoubleAnimation()
+                IteratorLevelSelectionGrid.BeginAnimation(HeightProperty, new DoubleAnimation()
                 {
                     From = 0,
-                    To = 30,
+                    To = 70,
                     Duration = TimeSpan.FromSeconds(0.3)
                 });
             }
@@ -141,24 +140,11 @@ public partial class ScreenshotTaker : Window
         Dispatcher.Invoke(() =>
         {
             _toolbarAnimationMutex.WaitOne();
-            if (ScreenshotToggleButton.Height != 25)
+            if (ToolbardButtonsGrid.Height != 25)
             {
                 _toolbarAnimationMutex.ReleaseMutex();
                 return;
             }
-
-            CaptureButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-            {
-                From = 25,
-                To = 0,
-                Duration = TimeSpan.FromSeconds(0.3)
-            });
-            AnalyzeToggleButton.BeginAnimation(HeightProperty, new DoubleAnimation()
-            {
-                From = 25,
-                To = 0,
-                Duration = TimeSpan.FromSeconds(0.3)
-            });
 
             var animation = new DoubleAnimation()
             {
@@ -166,6 +152,7 @@ public partial class ScreenshotTaker : Window
                 To = 0,
                 Duration = TimeSpan.FromSeconds(0.3)
             };
+            ToolbardButtonsGrid.BeginAnimation(HeightProperty, animation);
 
             animation.Completed += (s, e) =>
             {
@@ -177,20 +164,18 @@ public partial class ScreenshotTaker : Window
                 _isToolbarVisible = false;
             };
 
-            ScreenshotToggleButton.BeginAnimation(HeightProperty, animation);
-
-            ToolBarStack.BeginAnimation(MarginProperty, new ThicknessAnimation()
+            ToolBarStack.BeginAnimation(MarginProperty ,new ThicknessAnimation()
             {
-                From = new Thickness(0, 10, 0, 0),
-                To = new Thickness(0),
+                From = new Thickness(10),
+                To = new Thickness(5),
                 Duration = TimeSpan.FromSeconds(0.3)
             });
 
-            if (_analyze)
+            if (AnalyzeToggleButton.IsChecked == true)
             {
-                IteratorLevelSelectionStack.BeginAnimation(HeightProperty, new DoubleAnimation()
+                IteratorLevelSelectionGrid.BeginAnimation(HeightProperty, new DoubleAnimation()
                 {
-                    From = 30,
+                    From = 70,
                     To = 0,
                     Duration = TimeSpan.FromSeconds(0.3)
                 });
@@ -200,7 +185,7 @@ public partial class ScreenshotTaker : Window
 
     private void DoTheJob(System.Drawing.Bitmap image)
     {
-        if (_analyze)
+        if (AnalyzeToggleButton.IsChecked == true)
         {
             var analyzeWindow = new MainWindow(image, _textScanningPageIteratorLevel);
             analyzeWindow.Show();
@@ -222,12 +207,10 @@ public partial class ScreenshotTaker : Window
 
     private void ScreenshotToggleButton_Click(object sender, RoutedEventArgs e)
     {
-        _analyze = false;
-        AnalyzeToggleButton.Background = Brushes.DarkGray;
-        ScreenshotToggleButton.Background = Brushes.DeepSkyBlue;
-        IteratorLevelSelectionStack.BeginAnimation(HeightProperty, new DoubleAnimation()
+        AnalyzeToggleButton.IsChecked = false;
+        IteratorLevelSelectionGrid.BeginAnimation(HeightProperty, new DoubleAnimation()
         {
-            From = 30,
+            From = 70,
             To = 0,
             Duration = TimeSpan.FromSeconds(0.3)
         });
@@ -235,13 +218,11 @@ public partial class ScreenshotTaker : Window
 
     private void AnalyzeToggleButton_Click(object sender, RoutedEventArgs e)
     {
-        _analyze = true;
-        AnalyzeToggleButton.Background = Brushes.DeepSkyBlue;
-        ScreenshotToggleButton.Background = Brushes.DarkGray;
-        IteratorLevelSelectionStack.BeginAnimation(HeightProperty, new DoubleAnimation()
+        ScreenshotToggleButton.IsChecked = false;
+        IteratorLevelSelectionGrid.BeginAnimation(HeightProperty, new DoubleAnimation()
         {
             From = 0,
-            To = 30,
+            To = 70,
             Duration = TimeSpan.FromSeconds(0.3)
         });
     }
@@ -297,9 +278,32 @@ public partial class ScreenshotTaker : Window
         }
     }
 
+    private void PageIteratorSelectionComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        switch (PageIteratorSelectionComboBox.SelectedItem.ToString())
+        {
+            case "Block":
+                _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Block;
+                break;
+            case "Paragraph":
+                _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Para;
+                break;
+            case "Word":
+                _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Word;
+                break;
+            case "Line":
+                _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.TextLine;
+                break;
+            case "Symbol":
+                _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Symbol;
+                break;
+            default: break;
+        }
+    }
+
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
-        if (CaptureButton.IsMouseOver || AnalyzeToggleButton.IsMouseOver || ScreenshotToggleButton.IsMouseOver)
+        if (ToolBarBorder.IsMouseOver)
         {
             return;
         }
@@ -310,7 +314,7 @@ public partial class ScreenshotTaker : Window
 
     protected override void OnTouchDown(TouchEventArgs e)
     {
-        if (ToolBarBorder.AreAnyTouchesOver || CaptureButton.AreAnyTouchesOver || AnalyzeToggleButton.AreAnyTouchesOver || ScreenshotToggleButton.AreAnyTouchesOver)
+        if (ToolBarBorder.AreAnyTouchesOver)
         {
             return;
         }
@@ -321,7 +325,7 @@ public partial class ScreenshotTaker : Window
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
-        if (CaptureButton.IsMouseOver || AnalyzeToggleButton.IsMouseOver || ScreenshotToggleButton.IsMouseOver)
+        if (ToolBarBorder.IsMouseOver)
         {
             return;
         }
@@ -332,7 +336,7 @@ public partial class ScreenshotTaker : Window
 
     protected override void OnTouchUp(TouchEventArgs e)
     {
-        if (ToolBarBorder.AreAnyTouchesOver || CaptureButton.AreAnyTouchesOver || AnalyzeToggleButton.AreAnyTouchesOver || ScreenshotToggleButton.AreAnyTouchesOver)
+        if (ToolBarBorder.AreAnyTouchesOver)
         {
             return;
         }
@@ -361,7 +365,7 @@ public partial class ScreenshotTaker : Window
             {
                 ResetSelection();
             }
-            else if (CaptureButton.Height != 0)
+            else if (ToolbardButtonsGrid.Height != 0)
             {
                 BeginToolbarHidingAnimation();
             }
@@ -370,7 +374,7 @@ public partial class ScreenshotTaker : Window
                 App.Current.Shutdown();
             }
         }
-        else if (CaptureButton.Height == 0)
+        else if (ToolbardButtonsGrid.Height == 0)
         {
             BeginToolbarShowingAnimation(false);
         }
@@ -384,55 +388,5 @@ public partial class ScreenshotTaker : Window
             ResetSelection();
         }
         base.OnMouseRightButtonDown(e);
-    }
-
-    private void BlockToggleButton_Click(object sender, RoutedEventArgs e)
-    {
-        _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Block;
-        BlockToggleButton.Background = Brushes.DeepSkyBlue;
-        LineToggleButton.Background = Brushes.DarkGray;
-        WordToggleButton.Background = Brushes.DarkGray;
-        SymbolToggleButton.Background = Brushes.DarkGray;
-        ParagraphToggleButton.Background = Brushes.DarkGray;
-    }
-
-    private void LineToggleButton_Click(object sender, RoutedEventArgs e)
-    {
-        _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.TextLine;
-        BlockToggleButton.Background = Brushes.DarkGray;
-        LineToggleButton.Background = Brushes.DeepSkyBlue;
-        WordToggleButton.Background = Brushes.DarkGray;
-        SymbolToggleButton.Background = Brushes.DarkGray;
-        ParagraphToggleButton.Background = Brushes.DarkGray;
-    }
-
-    private void WordToggleButton_Click(object sender, RoutedEventArgs e)
-    {
-        _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Word;
-        BlockToggleButton.Background = Brushes.DarkGray;
-        LineToggleButton.Background = Brushes.DarkGray;
-        WordToggleButton.Background = Brushes.DeepSkyBlue;
-        SymbolToggleButton.Background = Brushes.DarkGray;
-        ParagraphToggleButton.Background = Brushes.DarkGray;
-    }
-
-    private void SymbolToggleButton_Click(object sender, RoutedEventArgs e)
-    {
-        _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Symbol;
-        BlockToggleButton.Background = Brushes.DarkGray;
-        LineToggleButton.Background = Brushes.DarkGray;
-        WordToggleButton.Background = Brushes.DarkGray;
-        SymbolToggleButton.Background = Brushes.DeepSkyBlue;
-        ParagraphToggleButton.Background = Brushes.DarkGray;
-    }
-
-    private void ParagraphToggleButton_Click(object sender, RoutedEventArgs e)
-    {
-        _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Para;
-        BlockToggleButton.Background = Brushes.DarkGray;
-        LineToggleButton.Background = Brushes.DarkGray;
-        WordToggleButton.Background = Brushes.DarkGray;
-        SymbolToggleButton.Background = Brushes.DarkGray;
-        ParagraphToggleButton.Background = Brushes.DeepSkyBlue;
     }
 }

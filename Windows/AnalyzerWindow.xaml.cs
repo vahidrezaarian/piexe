@@ -1,27 +1,25 @@
-﻿using Microsoft.Win32;
-using Piexe.Assets;
+﻿using Piexe.Assets;
 using Piexe.Utilities;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 
 namespace Piexe;
 
 public partial class MainWindow : Window
 {
-    private readonly Mutex _closeButtonAnimationMutex = new(false);
     private System.Drawing.Bitmap? _analyzingImageBitmap;
     private List<AnalyzedItem> _analyzedItems = [];
     private Tesseract.PageIteratorLevel _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Block;
 
     public MainWindow(object image, Tesseract.PageIteratorLevel textScanningPageIteratorLevel)
     {
-        InitializeTheWindow();
         _textScanningPageIteratorLevel = textScanningPageIteratorLevel;
+        InitializeTheWindow();
+        SetWindowLocation();
         Task.Run(() =>
         {
             try
@@ -45,14 +43,8 @@ public partial class MainWindow : Window
     private void InitializeTheWindow()
     {
         InitializeComponent();
-        SetColors();
         ShowLoading();
-
-        SystemEvents.UserPreferenceChanged += (s, e) =>
-        {
-            SetColors();
-            CreateAndInsertAnalyzedItems();
-        };
+        InitializePageIteratorCombobox();
     }
 
     private void InitializeItemsList(List<AnalyzedItem> analyzedItems)
@@ -63,12 +55,23 @@ public partial class MainWindow : Window
             _analyzedItems = analyzedItems;
             HideLoading();
             CreateAndInsertAnalyzedItems();
-            PutWindowInCenter();
+            SetWindowLocation();
             CheckScrollBarVisibility();
         });
     }
 
-    private void PutWindowInCenter()
+    private void InitializePageIteratorCombobox()
+    {
+        var supportedLevels = new List<string>
+        {
+            "Block", "Paragraph", "Word", "Line", "Symbol"
+        };
+
+        PageIteratorSelectionComboBox.ItemsSource = supportedLevels;
+        PageIteratorSelectionComboBox.SelectedIndex = supportedLevels.IndexOf(GetIterationLevelName(_textScanningPageIteratorLevel));
+    }
+
+    private void SetWindowLocation()
     {
         Task.Run(() =>
         {
@@ -79,11 +82,8 @@ public partial class MainWindow : Window
                 var m = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
                     ?? Matrix.Identity;
 
-                var screenRight = m.Transform(new Point(px.Right, px.Bottom)).X;
-                var screenButtom = m.Transform(new Point(px.Right, px.Bottom)).Y;
-
-                Left = (screenRight - Width) / 2;
-                Top = (screenButtom - Height) / 2;
+                Left = (m.Transform(new Point(px.Right, px.Bottom)).X - Width) / 2;
+                Top = 0;
             });
         });
     }
@@ -97,7 +97,7 @@ public partial class MainWindow : Window
             {
                 if (WindowContentScrollView.ComputedVerticalScrollBarVisibility == Visibility.Visible)
                 {
-                    MainContainer.Margin = new Thickness(0, 0, 10, 0);
+                    MainContainer.Margin = new Thickness(0, 0, 20, 0);
                 }
                 else
                 {
@@ -105,19 +105,6 @@ public partial class MainWindow : Window
                 }
             });
         });
-    }
-
-    private void SetColors()
-    {
-        WindowBorder.Background = CustomColors.Primary;
-        WindowBorder.BorderBrush = CustomColors.PrimaryVariant;
-        WindowTitleText.Foreground = CustomColors.PrimaryVariant;
-        CloseWindowButtonText.Foreground = CustomColors.PrimaryVariant;
-        WindowMessagingTextBlock.Foreground = CustomColors.Primary;
-        CloseWindowButton.Background = CustomColors.PrimaryVariant;
-        MessagingBackground.Background = CustomColors.PrimaryVariant;
-        PageIteratorLevelSelectionBackground.Background = CustomColors.PrimaryVariant;
-        PageIteratorLevelSelectionText.Foreground = CustomColors.Primary;
     }
 
     private void ShowLoading()
@@ -135,6 +122,25 @@ public partial class MainWindow : Window
     {
         WindowContentGrid.Effect = null;
         ScanningGif.Visibility = Visibility.Collapsed;
+    }
+
+    private void ShowError(string text, bool permenant = false)
+    {
+        ErrorTextBlock.Text = text;
+        MessageTextBlock.Visibility = Visibility.Collapsed;
+        ErrorTextBlock.Visibility = Visibility.Visible;
+        if (!permenant)
+        {
+            Task.Run(() =>
+            {
+                Task.Delay(5000).Wait();
+                Dispatcher.Invoke(() =>
+                {
+                    ErrorTextBlock.Visibility = Visibility.Collapsed;
+                    MessageTextBlock.Visibility = Visibility.Visible;
+                });
+            });
+        }
     }
 
     private void CreateAndInsertAnalyzedItems()
@@ -159,151 +165,46 @@ public partial class MainWindow : Window
 
         if (textItemFound)
         {
-            PageIteratorLevelSelectionBackground.Visibility = Visibility.Visible;
-            CreatePageIteratorSelectionWidget();
+            PageIteratorSelectionWidget.Visibility = Visibility.Visible;
         }
         else
         {
-            PageIteratorLevelSelectionBackground.Visibility = Visibility.Collapsed;
+            PageIteratorSelectionWidget.Visibility = Visibility.Collapsed;
         }
     }
 
-    private static Tesseract.PageIteratorLevel GetTextScanningPageIteratorLevel(string? levelName)
-    {
-        return levelName switch
-        {
-            "Block" => Tesseract.PageIteratorLevel.Block,
-            "Word" => Tesseract.PageIteratorLevel.Word,
-            "Symbol" => Tesseract.PageIteratorLevel.Symbol,
-            "Line" => Tesseract.PageIteratorLevel.TextLine,
-            "Paragraph" => Tesseract.PageIteratorLevel.Para,
-            _ => throw new NotSupportedException("Invalid level name!"),
-        };
-    }
-
-    private static string GetTextScanningPageIteratorLevel(Tesseract.PageIteratorLevel levelName)
-    {
-        return levelName switch
-        {
-            Tesseract.PageIteratorLevel.Block => "By Block",
-            Tesseract.PageIteratorLevel.TextLine => "By Line",
-            Tesseract.PageIteratorLevel.Symbol => "By Symbol",
-            Tesseract.PageIteratorLevel.Para => "By Paragraph",
-            Tesseract.PageIteratorLevel.Word => "By Word",
-            _ => throw new NotSupportedException("Invalid level name!"),
-        };
-    }
-
-    private void CreatePageIteratorSelectionWidget()
-    {
-        PageIteratorLevelSelectionStack.Children.Clear();
-
-        var supportedLevels = new List<Tesseract.PageIteratorLevel>
-        {
-            Tesseract.PageIteratorLevel.Word,
-            Tesseract.PageIteratorLevel.Para,
-            Tesseract.PageIteratorLevel.Block,
-            Tesseract.PageIteratorLevel.Symbol,
-            Tesseract.PageIteratorLevel.TextLine
-        };
-
-        var primaryButton = CreateButton(GetTextScanningPageIteratorLevel(_textScanningPageIteratorLevel), hoverBrush: CustomColors.CustomBlue, foreground: CustomColors.PrimaryVariant, background: CustomColors.Primary, width: 150);
-        PageIteratorLevelSelectionStack.Children.Add(primaryButton);
-        supportedLevels.Remove(_textScanningPageIteratorLevel);
-
-        for (int i = 0; i < supportedLevels.Count; i++)
-        {
-            var cornerRadius = i == 0 ? new CornerRadius(15, 0, 0, 15) : i == supportedLevels.Count - 1 ? new CornerRadius(0, 15, 15, 0) : new CornerRadius(0, 0, 0, 0);
-            var button = CreateButton(GetTextScanningPageIteratorLevel(supportedLevels[i]), hoverBrush: CustomColors.CustomBlue, foreground: CustomColors.PrimaryVariant, background: CustomColors.Primary, cornerRadius: cornerRadius);
-            button.Visibility = Visibility.Collapsed;
-            var level = supportedLevels[i];
-
-            button.Click += (s, e) =>
-            {
-                _textScanningPageIteratorLevel = level;
-                SetButtonText(PageIteratorLevelSelectionStack.Children[0] as Button, GetButtonText(button));
-                for (int j = 1; j < PageIteratorLevelSelectionStack.Children.Count; j++)
-                {
-                    var oldButton = PageIteratorLevelSelectionStack.Children[j] as Button;
-                    if (oldButton != null)
-                    {
-                        oldButton.Visibility = Visibility.Collapsed;
-                    }
-                }
-                ShowLoading();
-                Task.Run(() =>
-                {
-                    InitializeItemsList(PictureScanner.Scan(_analyzingImageBitmap, _textScanningPageIteratorLevel));
-                });
-            };
-
-            PageIteratorLevelSelectionStack.Children.Add(button);
-        }
-
-        PageIteratorLevelSelectionBackground.MouseLeave += (s, e) =>
-        {
-            SetIteratorLevelButtonsVisibility(true);
-        };
-
-        PageIteratorLevelSelectionBackground.MouseLeftButtonDown += (s, e) =>
-        {
-            SetIteratorLevelButtonsVisibility(true);
-        };
-
-        primaryButton.Click += (s, e) =>
-        {
-            SetIteratorLevelButtonsVisibility(false);
-        };
-    }
-
-    private void SetIteratorLevelButtonsVisibility(bool showMain)
-    {
-        var button = PageIteratorLevelSelectionStack.Children[0];
-        if (button != null)
-        {
-            button.Visibility = showMain ? Visibility.Visible : Visibility.Collapsed;
-        }
-        for (int j = 1; j < PageIteratorLevelSelectionStack.Children.Count; j++)
-        {
-            button = PageIteratorLevelSelectionStack.Children[j] as Button;
-            if (button != null)
-            {
-                button.Visibility = showMain ? Visibility.Collapsed : Visibility.Visible;
-            }
-        }
-    }
-
-    private static Border CreateElementHeader(AnalyzedItemType type)
+    #region StaticHelpers
+    private static Grid CreateElementHeader(AnalyzedItemType type)
     {
         var stack = new StackPanel
         {
             Name = "ElementHeaderStack",
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = System.Windows.VerticalAlignment.Center
-        };
-
-        var border = new Border()
-        {
-            CornerRadius = new CornerRadius(15, 15, 0, 0),
-            Child = stack,
-            BorderThickness = new Thickness(0),
-            Background = CustomColors.ItemBackground,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Center,
-            ClipToBounds = false,
-            Margin = new Thickness(0, 0, 0, 3),
-            Padding = new Thickness(8, 5, 8, 5)
+            Margin = new Thickness(8)
         };
 
-        var iconType = CustomIcons.Document;
+        var grid = new Grid()
+        {
+            Margin = new Thickness(0, 0, 0, 3)
+        };
+
+        var border = new Button()
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            IsEnabled = false
+        };
+
+        var iconType = CustomIcons.Document(SystemColors.AccentColor);
         if (type == AnalyzedItemType.QrCode)
         {
-            iconType = CustomIcons.QRCode;
+            iconType = CustomIcons.QRCode(SystemColors.AccentColor);
         }
         else if (type == AnalyzedItemType.Barcode)
         {
-            iconType = CustomIcons.Barcode;
+            iconType = CustomIcons.Barcode(SystemColors.AccentColor);
         }
 
         stack.Children.Add(new Image()
@@ -316,36 +217,33 @@ public partial class MainWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
         });
 
-        return border;
+        grid.Children.Add(border);
+        grid.Children.Add(stack);
+
+        return grid;
     }
 
-    private Border CreateElementContent(string text, StackPanel headerStack)
+    private static Grid CreateElementContent(string text, StackPanel headerStack)
     {
-        var textBoxStyle = new Style(typeof(Border));
-        textBoxStyle.Setters.Add(new Setter(Border.CornerRadiusProperty, new CornerRadius(15)));
         var textBox = new TextBox()
         {
             Name = "ItemTextBox",
             Text = text,
-            Foreground = CustomColors.PrimaryVariant,
-            VerticalAlignment = System.Windows.VerticalAlignment.Center,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Left,
             Cursor = Cursors.IBeam,
-            Background = new SolidColorBrush(Colors.Transparent),
-            CaretBrush = CustomColors.PrimaryVariant,
-            BorderThickness = new Thickness(1.5),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
             FontWeight = FontWeights.SemiBold,
-            BorderBrush = CustomColors.PrimaryVariant,
+            AcceptsReturn = true,
+            AcceptsTab = true,
             TextAlignment = TextAlignment.Left,
-            Padding = new Thickness(10),
-            Resources =
-                {
-                    { typeof(Border), textBoxStyle }
-                }
+            Padding = new Thickness(8),
+            Margin = new Thickness(10)
         };
         textBox.TextChanged += (s, e) =>
         {
-            Dispatcher.Invoke(() =>
+            App.Current.Dispatcher.Invoke(() =>
             {
                 if (textBox.Text.IsDirectory())
                 {
@@ -388,21 +286,22 @@ public partial class MainWindow : Window
             SetupButtonsForLink(headerStack);
         }
 
-        var border = new Border()
+        var grid = new Grid();
+
+        var border = new Button()
         {
-            CornerRadius = new CornerRadius(0, 0, 15, 15),
-            Child = textBox,
-            BorderThickness = new Thickness(0),
-            Background = CustomColors.ItemBackground,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            ClipToBounds = false,
-            Padding = new Thickness(10)
+            VerticalAlignment = VerticalAlignment.Stretch,
+            IsEnabled = false
         };
 
-        return border;
+        grid.Children.Add(border);
+        grid.Children.Add(textBox);
+
+        return grid;
     }
 
-    private StackPanel CreateDetectedElement(AnalyzedItemType type, string text)
+    private static StackPanel CreateDetectedElement(AnalyzedItemType type, string text)
     {
         var stack = new StackPanel
         {
@@ -412,10 +311,9 @@ public partial class MainWindow : Window
             HorizontalAlignment= HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 0, 20)
         };
-        stack.MouseLeftButtonDown += WindowMouseDown;
 
         var elementHeader = CreateElementHeader(type);
-        var headerStack = elementHeader.Child as StackPanel ?? throw new NullReferenceException($"headerStack can't be null!");
+        var headerStack = elementHeader.Children[1] as StackPanel ?? throw new NullReferenceException($"HeaderStack can't be null!");
 
         var elementContent = CreateElementContent(text, headerStack);
 
@@ -427,7 +325,7 @@ public partial class MainWindow : Window
 
     private static Button CreateOpenLinkButton(TextBox textBox)
     {
-        var button = CreateButton("Open Link", CustomIcons.Link, new CornerRadius(15));
+        var button = CreateButton("Open Link", CustomIcons.Link(SystemColors.AccentColor));
         button.Name = "OpenLinkButton";
         button.Visibility = Visibility.Collapsed;
         button.Click += (s, e) =>
@@ -442,7 +340,7 @@ public partial class MainWindow : Window
 
     private static Button CreateOpenFolderButton(TextBox textBox)
     {
-        var button = CreateButton("Open Folder", CustomIcons.OpenFolder, new CornerRadius(15));
+        var button = CreateButton("Open Folder", CustomIcons.OpenFolder(SystemColors.AccentColor));
         button.Name = "OpenFolderButton";
         button.Visibility = Visibility.Collapsed;
         button.Click += (s, e) =>
@@ -458,7 +356,7 @@ public partial class MainWindow : Window
 
     private static Button CreateCopyButton(TextBox textBox)
     {
-        var button = CreateButton("Copy", CustomIcons.Copy, new CornerRadius(15));
+        var button = CreateButton("Copy", CustomIcons.Copy(SystemColors.AccentColor));
         button.Click += (s, e) =>
         {
             Clipboard.SetDataObject(textBox.Text);
@@ -470,10 +368,9 @@ public partial class MainWindow : Window
                 }
                 else if (item is Image buttonIcon)
                 {
-                    buttonIcon.Source = CustomIcons.Copied;
+                    buttonIcon.Source = CustomIcons.Copied(SystemColors.AccentColor);
                 }
             }
-            button.Background = CustomColors.CustomGreen;
             Task.Run(() =>
             {
                 Task.Delay(2000).Wait();
@@ -487,10 +384,9 @@ public partial class MainWindow : Window
                         }
                         else if (item is Image buttonIcon)
                         {
-                            buttonIcon.Source = CustomIcons.Copy;
+                            buttonIcon.Source = CustomIcons.Copy(SystemColors.AccentColor);
                         }
                     }
-                    button.Background = CustomColors.CustomBlue;
                 });
             });
         };
@@ -508,7 +404,7 @@ public partial class MainWindow : Window
             BorderBrush = Brushes.Transparent,
             BorderThickness = new Thickness(0)
         };
-        var buttonMainContent = CreateButton("Open in PowerShell", CustomIcons.PowerShell, new CornerRadius(15));
+        var buttonMainContent = CreateButton("Open in PowerShell", CustomIcons.PowerShell(SystemColors.AccentColor));
         border.Child = buttonMainContent;
         border.Visibility = Visibility.Collapsed;
 
@@ -518,7 +414,7 @@ public partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        var runAsAdminButton = CreateButton("Run as admin", CustomIcons.PowerShell, new CornerRadius(15, 0, 0, 15));
+        var runAsAdminButton = CreateButton("Run as admin", CustomIcons.PowerShell(SystemColors.AccentColor));
         runAsAdminButton.Click += (s, e) =>
         {
             using Process process = new();
@@ -529,7 +425,7 @@ public partial class MainWindow : Window
             process.StartInfo.Verb = "runas";
             process.Start();
         };
-        var runNormallyButton = CreateButton("Run normally", CustomIcons.PowerShell, new CornerRadius(0, 15, 15, 0));
+        var runNormallyButton = CreateButton("Run normally", CustomIcons.PowerShell(SystemColors.AccentColor));
         runNormallyButton.Click += (s, e) =>
         {
             using Process process = new();
@@ -540,7 +436,6 @@ public partial class MainWindow : Window
         };
         buttonHoverContent.Children.Add(runAsAdminButton);
         buttonHoverContent.Children.Add(runNormallyButton);
-
 
         border.MouseEnter += (s, e) =>
         {
@@ -564,7 +459,7 @@ public partial class MainWindow : Window
             BorderBrush = Brushes.Transparent,
             BorderThickness = new Thickness(0)
         };
-        var buttonMainContent = CreateButton("Open in Command Prompt", CustomIcons.PowerShell, new CornerRadius(15));
+        var buttonMainContent = CreateButton("Open in Command Prompt", CustomIcons.PowerShell(SystemColors.AccentColor));
         border.Child = buttonMainContent;
         border.Visibility = Visibility.Collapsed;
 
@@ -574,7 +469,7 @@ public partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        var runAsAdminButton = CreateButton("Run as admin", CustomIcons.PowerShell, new CornerRadius(15, 0, 0, 15));
+        var runAsAdminButton = CreateButton("Run as admin", CustomIcons.PowerShell(SystemColors.AccentColor));
         runAsAdminButton.Click += (s, e) =>
         {
             using Process process = new();
@@ -585,7 +480,7 @@ public partial class MainWindow : Window
             process.StartInfo.UseShellExecute = true;
             process.Start();
         };
-        var runNormallyButton = CreateButton("Run normally", CustomIcons.PowerShell, new CornerRadius(0, 15, 15, 0));
+        var runNormallyButton = CreateButton("Run normally", CustomIcons.PowerShell(SystemColors.AccentColor));
         runNormallyButton.Click += (s, e) =>
         {
             using Process process = new();
@@ -608,13 +503,13 @@ public partial class MainWindow : Window
         return border;
     }
 
-    private static Button CreateButton(string text, ImageSource? icon = null, CornerRadius? cornerRadius = null, Brush? hoverBrush = null, Brush? foreground = null, Brush? background = null, double? width = null)
+    private static Button CreateButton(string text, ImageSource? icon = null)
     {
         var contentPanel = new StackPanel()
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = System.Windows.VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(15, 0, 15, 0)
         };
         var buttonText = new TextBlock()
@@ -623,7 +518,7 @@ public partial class MainWindow : Window
             Margin = new Thickness(icon is null ? 0 : 10, 0, 0, 0),
             HorizontalAlignment = icon is null ? HorizontalAlignment.Center : HorizontalAlignment.Right,
             FontWeight = FontWeights.SemiBold,
-            VerticalAlignment = System.Windows.VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         if (icon != null)
@@ -644,59 +539,12 @@ public partial class MainWindow : Window
         var button = new Button()
         {
             Content = contentPanel,
-            VerticalAlignment = System.Windows.VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Stretch,
             Margin = new Thickness(5, 0, 0, 0),
-            Foreground = foreground ?? CustomColors.PrimaryVariant,
-            Background = background ?? CustomColors.CustomBlue,
-            Padding = new Thickness(15, 0, 15, 0),
-            BorderThickness = new Thickness(1.5),
-            BorderBrush = Brushes.Transparent,
-            Height = 32,
-            Style = CreateButtonStyle(hoverBrush ?? CustomColors.PrimaryVariant, cornerRadius ?? new CornerRadius(15)),
+            Padding = new Thickness(5)
         };
-
-        if (width != null)
-        {
-            button.Width = width.Value;
-        }
 
         return button;
-    }
-
-    private static Style CreateButtonStyle(Brush hoverBorderBrush, CornerRadius cornerRadius)
-    {
-        var template = new ControlTemplate(typeof(Button));
-
-        var border = new FrameworkElementFactory(typeof(Border))
-        {
-            Name = "Border"
-        };
-        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
-        border.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty));
-        border.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(Control.BorderThicknessProperty));
-        border.SetValue(FrameworkElement.SnapsToDevicePixelsProperty, true);
-
-        var cornerRadiusStyle = new Style(typeof(Border));
-        cornerRadiusStyle.Setters.Add(new Setter(Border.CornerRadiusProperty, cornerRadius));
-        border.SetValue(FrameworkElement.StyleProperty, cornerRadiusStyle);
-
-        var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
-        presenter.SetValue(ContentPresenter.ContentProperty, new TemplateBindingExtension(ContentControl.ContentProperty));
-        presenter.SetValue(ContentPresenter.ContentTemplateProperty, new TemplateBindingExtension(ContentControl.ContentTemplateProperty));
-        presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-
-        border.AppendChild(presenter);
-        template.VisualTree = border;
-
-        var hoverTrigger = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        hoverTrigger.Setters.Add(new Setter(Border.BorderBrushProperty, hoverBorderBrush, "Border"));
-        template.Triggers.Add(hoverTrigger);
-
-        var style = new Style(typeof(Button));
-        style.Setters.Add(new Setter(Control.TemplateProperty, template));
-
-        return style;
     }
 
     private static void SetButtonVisibility(StackPanel buttonsStackPanel, string name, Visibility visibility)
@@ -716,28 +564,6 @@ public partial class MainWindow : Window
             }
             index++;
         }
-    }
-
-    private static void SetButtonText(Button? button, string? text)
-    {
-        if (button is null)
-        {
-            return;
-        }
-
-        var buttonstack = button.Content as StackPanel;
-        var textBlock = buttonstack?.Children[0] as TextBlock;
-        if (textBlock != null)
-        {
-            textBlock.Text = text;
-        }
-    }
-
-    private static string? GetButtonText(Button button)
-    {
-        var buttonstack = button.Content as StackPanel;
-        var textBlock = buttonstack?.Children[0] as TextBlock;
-        return textBlock?.Text;
     }
 
     private static void SetupButtonsForDirectory(StackPanel buttonsStackPanel)
@@ -764,104 +590,32 @@ public partial class MainWindow : Window
         SetButtonVisibility(buttonsStackPanel, "OpenLinkButton", Visibility.Collapsed);
     }
 
-    private void CloseButtonMouseEnter(object sender, MouseEventArgs e)
+    private static string GetIterationLevelName(Tesseract.PageIteratorLevel level)
     {
-        Dispatcher.Invoke(() =>
+        return level switch
         {
-            _closeButtonAnimationMutex.WaitOne();
-            if (CloseWindowButton.Width != 20)
-            {
-                _closeButtonAnimationMutex.ReleaseMutex();
-                return;
-            }
-
-            var buttonSizeChangeAnimation = new DoubleAnimation()
-            {
-                From = 20,
-                To = 50,
-                Duration = TimeSpan.FromSeconds(0.3)
-            };
-
-            var buttonTextSizeChangeAnimation = new DoubleAnimation()
-            {
-                From = 0,
-                To = 60,
-                Duration = TimeSpan.FromSeconds(0.5)
-            };
-
-            buttonSizeChangeAnimation.Completed += (s, ee) =>
-            {
-                _closeButtonAnimationMutex.ReleaseMutex();
-                if (!CloseWindowButton.IsMouseOver)
-                {
-                    CloseButtonMouseLeave(this, e);
-                }
-            };
-            CloseWindowButton.BeginAnimation(WidthProperty, buttonSizeChangeAnimation);
-            CloseWindowButtonText.BeginAnimation(WidthProperty, buttonTextSizeChangeAnimation);
-        });
+            Tesseract.PageIteratorLevel.Para => "Paragraph",
+            Tesseract.PageIteratorLevel.Word => "Word",
+            Tesseract.PageIteratorLevel.TextLine => "Line",
+            Tesseract.PageIteratorLevel.Symbol => "Symbol",
+            _ => "Block",
+        };
     }
 
-    private void CloseButtonMouseLeave(object sender, MouseEventArgs e)
+    private static Tesseract.PageIteratorLevel GetIterationLevel(string? levelName)
     {
-        Dispatcher.Invoke(() =>
+        return levelName switch
         {
-            _closeButtonAnimationMutex.WaitOne();
-            if (CloseWindowButton.Width != 50)
-            {
-                _closeButtonAnimationMutex.ReleaseMutex();
-                return;
-            }
-
-            var buttonSizeChangeAnimation = new DoubleAnimation()
-            {
-                From = 50,
-                To = 20,
-                Duration = TimeSpan.FromSeconds(0.3)
-            };
-
-            var buttonTextSizeChangeAnimation = new DoubleAnimation()
-            {
-                From = 60,
-                To = 0,
-                Duration = TimeSpan.FromSeconds(0.1)
-            };
-
-            buttonSizeChangeAnimation.Completed += (s, ee) =>
-            {
-                _closeButtonAnimationMutex.ReleaseMutex();
-                if (CloseWindowButton.IsMouseOver)
-                {
-                    CloseButtonMouseEnter(this, e);
-                }
-            };
-            CloseWindowButton.BeginAnimation(WidthProperty, buttonSizeChangeAnimation);
-            CloseWindowButtonText.BeginAnimation(WidthProperty, buttonTextSizeChangeAnimation);
-        });
+            "Paragraph" => Tesseract.PageIteratorLevel.Para,
+            "Word" => Tesseract.PageIteratorLevel.Word,
+            "Line" => Tesseract.PageIteratorLevel.TextLine,
+            "Symbol" => Tesseract.PageIteratorLevel.Symbol,
+            _ => Tesseract.PageIteratorLevel.Block,
+        };
     }
+    #endregion
 
-    private void CloseWindowButtonClick(object sender, RoutedEventArgs e)
-    {
-        App.Current.Shutdown();
-    }
-
-    private void WindowMouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ChangedButton == MouseButton.Left && !CloseWindowButton.IsMouseOver)
-        {
-            this.DragMove();
-        }
-    }
-
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        if (e.Key == Key.Escape)
-        {
-            App.Current.Shutdown();
-        }
-        base.OnKeyDown(e);
-    }
-
+    #region DragAndDropControls
     private void ShowDropMessage()
     {
         var blur = new BlurEffect
@@ -881,67 +635,13 @@ public partial class MainWindow : Window
         WindowContentGrid.IsEnabled = true;
     }
 
-    private void Window_PreviewDragEnter(object sender, DragEventArgs e)
-    {
-        bool canDrop = false;
-
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
-        {
-            if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
-            {
-                foreach (var file in files)
-                {
-                    if (file.IsImageFile())
-                    {
-                        canDrop = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        e.Effects = canDrop ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
-
-        if (canDrop)
-        {
-            ShowDropMessage();
-        }
-    }
-
-    private void Window_PreviewDragLeave(object sender, DragEventArgs e)
-    {
-        e.Handled = true;
-        HideDropMessage();
-    }
-
-    private void ShowError(string text, bool permenant = false)
-    {
-        WindowMessagingTextBlock.Text = text;
-        WindowMessagingTextBlock.Foreground = CustomColors.PrimaryVariant;
-        MessagingBackground.Background = Brushes.Red;
-        if (!permenant)
-        {
-            Task.Run(() =>
-            {
-                Task.Delay(5000).Wait();
-                Dispatcher.Invoke(() =>
-                {
-                    WindowMessagingTextBlock.Text = "Drag and drop images to scan";
-                    WindowMessagingTextBlock.Foreground = CustomColors.Primary;
-                    MessagingBackground.Background = CustomColors.PrimaryVariant;
-                });
-            });
-        }
-    }
-
     private void Window_PreviewDrop(object sender, DragEventArgs e)
     {
         HideDropMessage();
         if (e.Data.GetDataPresent(DataFormats.FileDrop))
         {
             string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-            
+
             ShowLoading();
 
             Task.Run(() =>
@@ -977,5 +677,72 @@ public partial class MainWindow : Window
             });
         }
         e.Handled = true;
+    }
+
+    private void Window_PreviewDragEnter(object sender, DragEventArgs e)
+    {
+        bool canDrop = false;
+
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+            {
+                foreach (var file in files)
+                {
+                    if (file.IsImageFile())
+                    {
+                        canDrop = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        e.Effects = canDrop ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+
+        if (canDrop)
+        {
+            ShowDropMessage();
+        }
+    }
+
+    private void Window_PreviewDragLeave(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        HideDropMessage();
+    }
+    #endregion
+
+    private void PageIteratorSelectionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _textScanningPageIteratorLevel = GetIterationLevel(PageIteratorSelectionComboBox.SelectedItem.ToString());
+
+        ShowLoading();
+        Task.Run(() =>
+        {
+            InitializeItemsList(PictureScanner.Scan(_analyzingImageBitmap, _textScanningPageIteratorLevel));
+        });
+    }
+
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        DragMove();
+        base.OnMouseLeftButtonDown(e);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            App.Current.Shutdown();
+        }
+        base.OnKeyDown(e);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        App.Current.Shutdown();
+        base.OnClosed(e);
     }
 }

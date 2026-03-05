@@ -15,7 +15,7 @@
         WindowStartupLocation="CenterScreen"
         AllowsTransparency="True"
         MouseDown="WindowMouseDown"
-        Title="Piexe" MinWidth="250" MaxWidth="900" MaxHeight="900" SizeToContent="WidthAndHeight">
+        Title="Piexe" MinWidth="250" MaxWidth="900" MaxHeight="800" SizeToContent="WidthAndHeight">
     <Window.Background>
         <SolidColorBrush Color="Transparent"/>
     </Window.Background>

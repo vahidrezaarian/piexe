@@ -21,17 +21,22 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="Assets\LoadingGif.gif" />
     <None Remove="Tessdata\eng.traineddata" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="Assets\Icon.ico" />
+    <Content Include="Assets\LoadingGif.gif">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Tessdata\eng.traineddata">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="WpfAnimatedGif" Version="2.0.2" />
     <PackageReference Include="Tesseract" Version="5.2.0" />
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
     <PackageReference Include="ZXing.Net.Bindings.Windows.Compatibility" Version="0.16.14" />

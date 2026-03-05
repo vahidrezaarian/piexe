@@ -14,14 +14,39 @@ namespace Piexe;
 public partial class MainWindow : Window
 {
     private readonly Mutex _closeButtonAnimationMutex = new(false);
-    private List<AnalyzedItem> _analyzedItems = new List<AnalyzedItem>();
+    private System.Drawing.Bitmap? _analyzingImageBitmap;
+    private List<AnalyzedItem> _analyzedItems = [];
+    private Tesseract.PageIteratorLevel _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Block;
 
-    public MainWindow(List<AnalyzedItem> items)
+    public MainWindow(object image, Tesseract.PageIteratorLevel textScanningPageIteratorLevel)
+    {
+        InitializeTheWindow();
+        _textScanningPageIteratorLevel = textScanningPageIteratorLevel;
+        Task.Run(() =>
+        {
+            try
+            {
+                var items = PictureScanner.Scan(image, _textScanningPageIteratorLevel, out _analyzingImageBitmap);
+                Dispatcher.Invoke(() =>
+                {
+                    InitializeItemsList(items);
+                });
+            }
+            catch
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    ShowError("Something went wrong. Please try again.");
+                });
+            }
+        });
+    }
+
+    private void InitializeTheWindow()
     {
         InitializeComponent();
         SetColors();
-        _analyzedItems = items;
-        CreateAndInsertAnalyzedItems();
+        ShowLoading();
 
         SystemEvents.UserPreferenceChanged += (s, e) =>
         {
@@ -30,22 +55,56 @@ public partial class MainWindow : Window
         };
     }
 
-    public MainWindow(System.Drawing.Bitmap imageBitmap)
+    private void InitializeItemsList(List<AnalyzedItem> analyzedItems)
     {
-        InitializeComponent();
-        SetColors();
-
         Dispatcher.Invoke(() =>
         {
-            _analyzedItems = PictureScanner.Scan(imageBitmap);
+            MainContainer?.Children?.Clear();
+            _analyzedItems = analyzedItems;
+            HideLoading();
             CreateAndInsertAnalyzedItems();
+            PutWindowInCenter();
+            CheckScrollBarVisibility();
         });
+    }
 
-        SystemEvents.UserPreferenceChanged += (s, e) =>
+    private void PutWindowInCenter()
+    {
+        Task.Run(() =>
         {
-            SetColors();
-            CreateAndInsertAnalyzedItems();
-        };
+            Task.Delay(10).Wait();
+            Dispatcher.Invoke(() =>
+            {
+                var px = Natives.GetMonitorBoundsAtCursor(useWorkArea: false);
+                var m = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
+                    ?? Matrix.Identity;
+
+                var screenRight = m.Transform(new Point(px.Right, px.Bottom)).X;
+                var screenButtom = m.Transform(new Point(px.Right, px.Bottom)).Y;
+
+                Left = (screenRight - Width) / 2;
+                Top = (screenButtom - Height) / 2;
+            });
+        });
+    }
+
+    private void CheckScrollBarVisibility()
+    {
+        Task.Run(() =>
+        {
+            Task.Delay(50).Wait();
+            Dispatcher.Invoke(() =>
+            {
+                if (WindowContentScrollView.ComputedVerticalScrollBarVisibility == Visibility.Visible)
+                {
+                    MainContainer.Margin = new Thickness(0, 0, 10, 0);
+                }
+                else
+                {
+                    MainContainer.Margin = new Thickness(0);
+                }
+            });
+        });
     }
 
     private void SetColors()
@@ -54,24 +113,163 @@ public partial class MainWindow : Window
         WindowBorder.BorderBrush = CustomColors.PrimaryVariant;
         WindowTitleText.Foreground = CustomColors.PrimaryVariant;
         CloseWindowButtonText.Foreground = CustomColors.PrimaryVariant;
-        WindowMessagingTextBlock.Foreground = CustomColors.PrimaryVariant;
+        WindowMessagingTextBlock.Foreground = CustomColors.Primary;
         CloseWindowButton.Background = CustomColors.PrimaryVariant;
-        WindowDevider.Background = CustomColors.PrimaryVariant;
+        MessagingBackground.Background = CustomColors.PrimaryVariant;
+        PageIteratorLevelSelectionBackground.Background = CustomColors.PrimaryVariant;
+        PageIteratorLevelSelectionText.Foreground = CustomColors.Primary;
+    }
+
+    private void ShowLoading()
+    {
+        var blur = new BlurEffect
+        {
+            Radius = 12,
+            RenderingBias = RenderingBias.Performance
+        };
+        WindowContentGrid.Effect = blur;
+        ScanningGif.Visibility = Visibility.Visible;
+    }
+
+    private void HideLoading()
+    {
+        WindowContentGrid.Effect = null;
+        ScanningGif.Visibility = Visibility.Collapsed;
     }
 
     private void CreateAndInsertAnalyzedItems()
     {
         if (_analyzedItems.Count == 0)
         {
-            App.Current.Shutdown();
+            ShowError("No QR codes, barcodes or text detected.");
             return;
         }
 
         MainContainer.Children.Clear();
 
+        bool textItemFound = false;
         foreach (var item in _analyzedItems)
         {
+            if (!textItemFound && item.Type == AnalyzedItemType.Text)
+            {
+                textItemFound = true;
+            }
             MainContainer.Children.Add(CreateDetectedElement(item.Type, item.Value.Trim()));
+        }
+
+        if (textItemFound)
+        {
+            PageIteratorLevelSelectionBackground.Visibility = Visibility.Visible;
+            CreatePageIteratorSelectionWidget();
+        }
+        else
+        {
+            PageIteratorLevelSelectionBackground.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private static Tesseract.PageIteratorLevel GetTextScanningPageIteratorLevel(string? levelName)
+    {
+        return levelName switch
+        {
+            "Block" => Tesseract.PageIteratorLevel.Block,
+            "Word" => Tesseract.PageIteratorLevel.Word,
+            "Symbol" => Tesseract.PageIteratorLevel.Symbol,
+            "Line" => Tesseract.PageIteratorLevel.TextLine,
+            "Paragraph" => Tesseract.PageIteratorLevel.Para,
+            _ => throw new NotSupportedException("Invalid level name!"),
+        };
+    }
+
+    private static string GetTextScanningPageIteratorLevel(Tesseract.PageIteratorLevel levelName)
+    {
+        return levelName switch
+        {
+            Tesseract.PageIteratorLevel.Block => "By Block",
+            Tesseract.PageIteratorLevel.TextLine => "By Line",
+            Tesseract.PageIteratorLevel.Symbol => "By Symbol",
+            Tesseract.PageIteratorLevel.Para => "By Paragraph",
+            Tesseract.PageIteratorLevel.Word => "By Word",
+            _ => throw new NotSupportedException("Invalid level name!"),
+        };
+    }
+
+    private void CreatePageIteratorSelectionWidget()
+    {
+        PageIteratorLevelSelectionStack.Children.Clear();
+
+        var supportedLevels = new List<Tesseract.PageIteratorLevel>
+        {
+            Tesseract.PageIteratorLevel.Word,
+            Tesseract.PageIteratorLevel.Para,
+            Tesseract.PageIteratorLevel.Block,
+            Tesseract.PageIteratorLevel.Symbol,
+            Tesseract.PageIteratorLevel.TextLine
+        };
+
+        var primaryButton = CreateButton(GetTextScanningPageIteratorLevel(_textScanningPageIteratorLevel), hoverBrush: CustomColors.CustomBlue, foreground: CustomColors.PrimaryVariant, background: CustomColors.Primary, width: 150);
+        PageIteratorLevelSelectionStack.Children.Add(primaryButton);
+        supportedLevels.Remove(_textScanningPageIteratorLevel);
+
+        for (int i = 0; i < supportedLevels.Count; i++)
+        {
+            var cornerRadius = i == 0 ? new CornerRadius(15, 0, 0, 15) : i == supportedLevels.Count - 1 ? new CornerRadius(0, 15, 15, 0) : new CornerRadius(0, 0, 0, 0);
+            var button = CreateButton(GetTextScanningPageIteratorLevel(supportedLevels[i]), hoverBrush: CustomColors.CustomBlue, foreground: CustomColors.PrimaryVariant, background: CustomColors.Primary, cornerRadius: cornerRadius);
+            button.Visibility = Visibility.Collapsed;
+            var level = supportedLevels[i];
+
+            button.Click += (s, e) =>
+            {
+                _textScanningPageIteratorLevel = level;
+                SetButtonText(PageIteratorLevelSelectionStack.Children[0] as Button, GetButtonText(button));
+                for (int j = 1; j < PageIteratorLevelSelectionStack.Children.Count; j++)
+                {
+                    var oldButton = PageIteratorLevelSelectionStack.Children[j] as Button;
+                    if (oldButton != null)
+                    {
+                        oldButton.Visibility = Visibility.Collapsed;
+                    }
+                }
+                ShowLoading();
+                Task.Run(() =>
+                {
+                    InitializeItemsList(PictureScanner.Scan(_analyzingImageBitmap, _textScanningPageIteratorLevel));
+                });
+            };
+
+            PageIteratorLevelSelectionStack.Children.Add(button);
+        }
+
+        PageIteratorLevelSelectionBackground.MouseLeave += (s, e) =>
+        {
+            SetIteratorLevelButtonsVisibility(true);
+        };
+
+        PageIteratorLevelSelectionBackground.MouseLeftButtonDown += (s, e) =>
+        {
+            SetIteratorLevelButtonsVisibility(true);
+        };
+
+        primaryButton.Click += (s, e) =>
+        {
+            SetIteratorLevelButtonsVisibility(false);
+        };
+    }
+
+    private void SetIteratorLevelButtonsVisibility(bool showMain)
+    {
+        var button = PageIteratorLevelSelectionStack.Children[0];
+        if (button != null)
+        {
+            button.Visibility = showMain ? Visibility.Visible : Visibility.Collapsed;
+        }
+        for (int j = 1; j < PageIteratorLevelSelectionStack.Children.Count; j++)
+        {
+            button = PageIteratorLevelSelectionStack.Children[j] as Button;
+            if (button != null)
+            {
+                button.Visibility = showMain ? Visibility.Collapsed : Visibility.Visible;
+            }
         }
     }
 
@@ -204,7 +402,6 @@ public partial class MainWindow : Window
         return border;
     }
 
-
     private StackPanel CreateDetectedElement(AnalyzedItemType type, string text)
     {
         var stack = new StackPanel
@@ -212,6 +409,7 @@ public partial class MainWindow : Window
             Orientation = Orientation.Vertical,
             ClipToBounds = false,
             VerticalAlignment = System.Windows.VerticalAlignment.Center,
+            HorizontalAlignment= HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 0, 20)
         };
         stack.MouseLeftButtonDown += WindowMouseDown;
@@ -410,7 +608,7 @@ public partial class MainWindow : Window
         return border;
     }
 
-    private static Button CreateButton(string text, ImageSource icon, CornerRadius cornerRadius)
+    private static Button CreateButton(string text, ImageSource? icon = null, CornerRadius? cornerRadius = null, Brush? hoverBrush = null, Brush? foreground = null, Brush? background = null, double? width = null)
     {
         var contentPanel = new StackPanel()
         {
@@ -422,35 +620,47 @@ public partial class MainWindow : Window
         var buttonText = new TextBlock()
         {
             Text = text,
-            Margin = new Thickness(10, 0, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(icon is null ? 0 : 10, 0, 0, 0),
+            HorizontalAlignment = icon is null ? HorizontalAlignment.Center : HorizontalAlignment.Right,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = System.Windows.VerticalAlignment.Center
         };
-        var buttonIcon = new Image()
+
+        if (icon != null)
         {
-            Source = icon,
-            Width = 15,
-            Height = 15,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        contentPanel.Children.Add(buttonIcon);
+            var buttonIcon = new Image()
+            {
+                Source = icon,
+                Width = 15,
+                Height = 15,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            contentPanel.Children.Add(buttonIcon);
+        }
+        
         contentPanel.Children.Add(buttonText);
 
-        return new Button()
+        var button = new Button()
         {
             Content = contentPanel,
             VerticalAlignment = System.Windows.VerticalAlignment.Center,
             Margin = new Thickness(5, 0, 0, 0),
-            Foreground = CustomColors.PrimaryVariant,
-            Background = CustomColors.CustomBlue,
+            Foreground = foreground ?? CustomColors.PrimaryVariant,
+            Background = background ?? CustomColors.CustomBlue,
             Padding = new Thickness(15, 0, 15, 0),
             BorderThickness = new Thickness(1.5),
             BorderBrush = Brushes.Transparent,
             Height = 32,
-            Style = CreateButtonStyle(CustomColors.PrimaryVariant, cornerRadius),
+            Style = CreateButtonStyle(hoverBrush ?? CustomColors.PrimaryVariant, cornerRadius ?? new CornerRadius(15)),
         };
+
+        if (width != null)
+        {
+            button.Width = width.Value;
+        }
+
+        return button;
     }
 
     private static Style CreateButtonStyle(Brush hoverBorderBrush, CornerRadius cornerRadius)
@@ -506,6 +716,28 @@ public partial class MainWindow : Window
             }
             index++;
         }
+    }
+
+    private static void SetButtonText(Button? button, string? text)
+    {
+        if (button is null)
+        {
+            return;
+        }
+
+        var buttonstack = button.Content as StackPanel;
+        var textBlock = buttonstack?.Children[0] as TextBlock;
+        if (textBlock != null)
+        {
+            textBlock.Text = text;
+        }
+    }
+
+    private static string? GetButtonText(Button button)
+    {
+        var buttonstack = button.Content as StackPanel;
+        var textBlock = buttonstack?.Children[0] as TextBlock;
+        return textBlock?.Text;
     }
 
     private static void SetupButtonsForDirectory(StackPanel buttonsStackPanel)
@@ -683,19 +915,24 @@ public partial class MainWindow : Window
         HideDropMessage();
     }
 
-    private void ShowError(string text)
+    private void ShowError(string text, bool permenant = false)
     {
         WindowMessagingTextBlock.Text = text;
-        WindowMessagingTextBlock.Foreground = Brushes.Red;
-        Task.Run(() =>
+        WindowMessagingTextBlock.Foreground = CustomColors.PrimaryVariant;
+        MessagingBackground.Background = Brushes.Red;
+        if (!permenant)
         {
-            Task.Delay(5000).Wait();
-            Dispatcher.Invoke(() =>
+            Task.Run(() =>
             {
-                WindowMessagingTextBlock.Text = "Drag and drop images to scan";
-                WindowMessagingTextBlock.Foreground = Brushes.White;
+                Task.Delay(5000).Wait();
+                Dispatcher.Invoke(() =>
+                {
+                    WindowMessagingTextBlock.Text = "Drag and drop images to scan";
+                    WindowMessagingTextBlock.Foreground = CustomColors.Primary;
+                    MessagingBackground.Background = CustomColors.PrimaryVariant;
+                });
             });
-        });
+        }
     }
 
     private void Window_PreviewDrop(object sender, DragEventArgs e)
@@ -704,28 +941,40 @@ public partial class MainWindow : Window
         if (e.Data.GetDataPresent(DataFormats.FileDrop))
         {
             string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-            var scannedItems = new List<AnalyzedItem>();
+            
+            ShowLoading();
 
-            foreach (var file in files)
+            Task.Run(() =>
             {
-                if (file.IsImageFile())
+                try
                 {
-                    scannedItems.AddRange(PictureScanner.Scan(file));
-                }
-            }
+                    var scannedItems = new List<AnalyzedItem>();
+                    foreach (var file in files)
+                    {
+                        if (file.IsImageFile())
+                        {
+                            scannedItems.AddRange(PictureScanner.Scan(file, _textScanningPageIteratorLevel, out _analyzingImageBitmap));
+                        }
+                    }
 
-            if (scannedItems.Count() > 0)
-            {
-                MainContainer.Children.Clear();
-                foreach (var item in scannedItems)
-                {
-                    MainContainer.Children.Add(CreateDetectedElement(item.Type, item.Value.Trim()));
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (scannedItems.Count > 0)
+                        {
+                            InitializeItemsList(scannedItems);
+                        }
+                        else
+                        {
+                            HideLoading();
+                            ShowError("No QR codes, barcodes or text detected in the dropped image(s).");
+                        }
+                    });
                 }
-            }
-            else
-            {
-                ShowError("No QR codes, barcodes or text detected in the dropped image(s).");
-            }
+                catch
+                {
+                    ShowError("Something went wrong. Please try again.");
+                }
+            });
         }
         e.Handled = true;
     }

@@ -8,26 +8,31 @@ namespace Piexe;
 
 public partial class ScreenshotTaker : Window
 {
-    private bool _mouseDown = false;
+    private bool _mouseOrTouchDown = false;
     private bool _selectionAborted = false;
     private Point _startPoint;
     private bool _analyze = true;
     private Rect? _currentSelectingRectangle;
+    private bool _isToolbarVisible;
     private readonly Mutex _toolbarAnimationMutex = new(false);
+    private Tesseract.PageIteratorLevel _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Block;
 
     public ScreenshotTaker()
     {
         var px = Natives.GetMonitorBoundsAtCursor(useWorkArea: false);
 
         InitializeComponent();
-        InitializeToolbarAnimations();
+        InitializeToolbar();
 
         Task.Run(() =>
         {
             Task.Delay(2000).Wait();
             Dispatcher.Invoke(() =>
             {
-                BeginToolbarHidingAnimation();
+                if (!ToolBarBorder.IsMouseOver)
+                {
+                    BeginToolbarHidingAnimation();
+                }
             });
         });
 
@@ -43,7 +48,7 @@ public partial class ScreenshotTaker : Window
         Height = bottomRight.Y - topLeft.Y;
     }
 
-    private void InitializeToolbarAnimations()
+    private void InitializeToolbar()
     {
         ToolBarBorder.MouseEnter += (s, e) =>
         {
@@ -53,9 +58,24 @@ public partial class ScreenshotTaker : Window
         {
             BeginToolbarHidingAnimation();
         };
+        ToolBarBorder.TouchUp += (s, e) =>
+        {
+            if (CaptureButton.AreAnyTouchesOver || AnalyzeToggleButton.AreAnyTouchesOver || ScreenshotToggleButton.AreAnyTouchesOver)
+            {
+                return;
+            }
+            if (_isToolbarVisible)
+            {
+                BeginToolbarHidingAnimation();
+            }
+            else
+            {
+                BeginToolbarShowingAnimation();
+            }
+        };
     }
 
-    private void BeginToolbarShowingAnimation()
+    private void BeginToolbarShowingAnimation(bool checkHoverAtComplete = true)
     {
         Dispatcher.Invoke(() =>
         {
@@ -89,10 +109,11 @@ public partial class ScreenshotTaker : Window
             animation.Completed += (s, e) =>
             {
                 _toolbarAnimationMutex.ReleaseMutex();
-                if (!ToolBarBorder.IsMouseOver)
+                if (checkHoverAtComplete && !ToolBarBorder.IsMouseOver)
                 {
                     BeginToolbarHidingAnimation();
                 }
+                _isToolbarVisible = true;
             };
             ScreenshotToggleButton.BeginAnimation(HeightProperty, animation);
 
@@ -102,6 +123,16 @@ public partial class ScreenshotTaker : Window
                 To = new Thickness(0, 10, 0, 0),
                 Duration = TimeSpan.FromSeconds(0.3)
             });
+
+            if (_analyze)
+            {
+                IteratorLevelSelectionStack.BeginAnimation(HeightProperty, new DoubleAnimation()
+                {
+                    From = 0,
+                    To = 30,
+                    Duration = TimeSpan.FromSeconds(0.3)
+                });
+            }
         });
     }
 
@@ -143,6 +174,7 @@ public partial class ScreenshotTaker : Window
                 {
                     BeginToolbarShowingAnimation();
                 }
+                _isToolbarVisible = false;
             };
 
             ScreenshotToggleButton.BeginAnimation(HeightProperty, animation);
@@ -153,6 +185,16 @@ public partial class ScreenshotTaker : Window
                 To = new Thickness(0),
                 Duration = TimeSpan.FromSeconds(0.3)
             });
+
+            if (_analyze)
+            {
+                IteratorLevelSelectionStack.BeginAnimation(HeightProperty, new DoubleAnimation()
+                {
+                    From = 30,
+                    To = 0,
+                    Duration = TimeSpan.FromSeconds(0.3)
+                });
+            }
         });
     }
 
@@ -160,7 +202,7 @@ public partial class ScreenshotTaker : Window
     {
         if (_analyze)
         {
-            var analyzeWindow = new MainWindow(image);
+            var analyzeWindow = new MainWindow(image, _textScanningPageIteratorLevel);
             analyzeWindow.Show();
             analyzeWindow.Activate();
             analyzeWindow.Focus();
@@ -183,6 +225,12 @@ public partial class ScreenshotTaker : Window
         _analyze = false;
         AnalyzeToggleButton.Background = Brushes.DarkGray;
         ScreenshotToggleButton.Background = Brushes.DeepSkyBlue;
+        IteratorLevelSelectionStack.BeginAnimation(HeightProperty, new DoubleAnimation()
+        {
+            From = 30,
+            To = 0,
+            Duration = TimeSpan.FromSeconds(0.3)
+        });
     }
 
     private void AnalyzeToggleButton_Click(object sender, RoutedEventArgs e)
@@ -190,6 +238,12 @@ public partial class ScreenshotTaker : Window
         _analyze = true;
         AnalyzeToggleButton.Background = Brushes.DeepSkyBlue;
         ScreenshotToggleButton.Background = Brushes.DarkGray;
+        IteratorLevelSelectionStack.BeginAnimation(HeightProperty, new DoubleAnimation()
+        {
+            From = 0,
+            To = 30,
+            Duration = TimeSpan.FromSeconds(0.3)
+        });
     }
 
     private void ResetSelection()
@@ -201,43 +255,30 @@ public partial class ScreenshotTaker : Window
         SelectingRectangleStroke.Visibility = Visibility.Collapsed;
     }
 
-    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    private void SetCapturingStartParameters(Point point)
     {
-        if (CaptureButton.IsMouseOver || AnalyzeToggleButton.IsMouseOver || ScreenshotToggleButton.IsMouseOver)
-        {
-            return;
-        }
-
-        _mouseDown = true;
+        _mouseOrTouchDown = true;
         _selectionAborted = false;
-        _startPoint = e.GetPosition(this);
+        _startPoint = point;
         SelectingRectangle.Visibility = Visibility.Visible;
         ToolBarBorder.Visibility = Visibility.Collapsed;
-
-        base.OnMouseDown(e);
     }
 
-    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    private void SetCapturingEndParameters(Point point)
     {
-        if (CaptureButton.IsMouseOver || AnalyzeToggleButton.IsMouseOver || ScreenshotToggleButton.IsMouseOver)
-        {
-            return;
-        }
-
-        _mouseDown = false;
+        _mouseOrTouchDown = false;
         if (!_selectionAborted)
         {
             Hide();
-            DoTheJob(ScreenShot.Take(new Rect(_startPoint, e.GetPosition(this))));
+            DoTheJob(ScreenShot.Take(new Rect(_startPoint, point)));
         }
-        base.OnMouseUp(e);
     }
 
-    protected override void OnMouseMove(MouseEventArgs e)
+    private void UpdateCapturingParameters(Point point)
     {
-        if (_mouseDown && !_selectionAborted)
+        if (_mouseOrTouchDown && !_selectionAborted)
         {
-            _currentSelectingRectangle = new Rect(_startPoint, e.GetPosition(this));
+            _currentSelectingRectangle = new Rect(_startPoint, point);
 
             var wholeScreenGeometry = new RectangleGeometry(new Rect(0, 0, Width, Height));
             var selectedGeometry = new RectangleGeometry(_currentSelectingRectangle.Value);
@@ -254,31 +295,144 @@ public partial class ScreenshotTaker : Window
 
             SelectingRectangleStroke.Visibility = Visibility.Visible;
         }
+    }
+
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        if (CaptureButton.IsMouseOver || AnalyzeToggleButton.IsMouseOver || ScreenshotToggleButton.IsMouseOver)
+        {
+            return;
+        }
+
+        SetCapturingStartParameters(e.GetPosition(this));
+        base.OnMouseDown(e);
+    }
+
+    protected override void OnTouchDown(TouchEventArgs e)
+    {
+        if (ToolBarBorder.AreAnyTouchesOver || CaptureButton.AreAnyTouchesOver || AnalyzeToggleButton.AreAnyTouchesOver || ScreenshotToggleButton.AreAnyTouchesOver)
+        {
+            return;
+        }
+
+        SetCapturingStartParameters(e.GetTouchPoint(this).Position);
+        base.OnTouchDown(e);
+    }
+
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        if (CaptureButton.IsMouseOver || AnalyzeToggleButton.IsMouseOver || ScreenshotToggleButton.IsMouseOver)
+        {
+            return;
+        }
+
+        SetCapturingEndParameters(e.GetPosition(this));
+        base.OnMouseUp(e);
+    }
+
+    protected override void OnTouchUp(TouchEventArgs e)
+    {
+        if (ToolBarBorder.AreAnyTouchesOver || CaptureButton.AreAnyTouchesOver || AnalyzeToggleButton.AreAnyTouchesOver || ScreenshotToggleButton.AreAnyTouchesOver)
+        {
+            return;
+        }
+
+        SetCapturingEndParameters(e.GetTouchPoint(this).Position);
+        base.OnTouchUp(e);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        UpdateCapturingParameters(e.GetPosition(this));
         base.OnMouseMove(e);
+    }
+
+    protected override void OnTouchMove(TouchEventArgs e)
+    {
+        UpdateCapturingParameters(e.GetTouchPoint(this).Position);
+        base.OnTouchMove(e);
     }
 
     protected override void OnKeyUp(KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
-            if (_mouseDown)
+            if (_mouseOrTouchDown)
             {
                 ResetSelection();
+            }
+            else if (CaptureButton.Height != 0)
+            {
+                BeginToolbarHidingAnimation();
             }
             else
             {
                 App.Current.Shutdown();
             }
         }
+        else if (CaptureButton.Height == 0)
+        {
+            BeginToolbarShowingAnimation(false);
+        }
         base.OnKeyUp(e);
     }
 
     protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
     {
-        if (_mouseDown)
+        if (_mouseOrTouchDown)
         {
             ResetSelection();
         }
         base.OnMouseRightButtonDown(e);
+    }
+
+    private void BlockToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Block;
+        BlockToggleButton.Background = Brushes.DeepSkyBlue;
+        LineToggleButton.Background = Brushes.DarkGray;
+        WordToggleButton.Background = Brushes.DarkGray;
+        SymbolToggleButton.Background = Brushes.DarkGray;
+        ParagraphToggleButton.Background = Brushes.DarkGray;
+    }
+
+    private void LineToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.TextLine;
+        BlockToggleButton.Background = Brushes.DarkGray;
+        LineToggleButton.Background = Brushes.DeepSkyBlue;
+        WordToggleButton.Background = Brushes.DarkGray;
+        SymbolToggleButton.Background = Brushes.DarkGray;
+        ParagraphToggleButton.Background = Brushes.DarkGray;
+    }
+
+    private void WordToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Word;
+        BlockToggleButton.Background = Brushes.DarkGray;
+        LineToggleButton.Background = Brushes.DarkGray;
+        WordToggleButton.Background = Brushes.DeepSkyBlue;
+        SymbolToggleButton.Background = Brushes.DarkGray;
+        ParagraphToggleButton.Background = Brushes.DarkGray;
+    }
+
+    private void SymbolToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Symbol;
+        BlockToggleButton.Background = Brushes.DarkGray;
+        LineToggleButton.Background = Brushes.DarkGray;
+        WordToggleButton.Background = Brushes.DarkGray;
+        SymbolToggleButton.Background = Brushes.DeepSkyBlue;
+        ParagraphToggleButton.Background = Brushes.DarkGray;
+    }
+
+    private void ParagraphToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        _textScanningPageIteratorLevel = Tesseract.PageIteratorLevel.Para;
+        BlockToggleButton.Background = Brushes.DarkGray;
+        LineToggleButton.Background = Brushes.DarkGray;
+        WordToggleButton.Background = Brushes.DarkGray;
+        SymbolToggleButton.Background = Brushes.DarkGray;
+        ParagraphToggleButton.Background = Brushes.DeepSkyBlue;
     }
 }

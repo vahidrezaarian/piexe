@@ -11,9 +11,10 @@ public class ScannedBarcode
 
 public static class BarcodeScanner
 {
-    public static List<ScannedBarcode>? Scan(string imagePath)
+    public static List<ScannedBarcode>? Scan(string imagePath, out Bitmap sourceImage)
     {
-        return Scan((Bitmap)Image.FromFile(imagePath));
+        sourceImage = (Bitmap)Image.FromFile(imagePath);
+        return Scan(sourceImage);
     }
 
     public static List<ScannedBarcode>? Scan(Bitmap imageBitmap)

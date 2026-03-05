@@ -15,7 +15,7 @@
         WindowStartupLocation="CenterScreen"
         AllowsTransparency="True"
         MouseDown="WindowMouseDown"
-        Title="Piexe" MaxWidth="900" MaxHeight="500" MinWidth="250" SizeToContent="WidthAndHeight">
+        Title="Piexe" MinWidth="250" MaxWidth="900" MaxHeight="500" SizeToContent="WidthAndHeight">
     <Window.Background>
         <SolidColorBrush Color="Transparent"/>
     </Window.Background>
@@ -39,7 +39,7 @@
                         HorizontalAlignment="Right" Margin="0,0,14.5,0"  MouseLeave="CloseButtonMouseLeave"
                         VerticalAlignment="Center" MouseEnter="CloseButtonMouseEnter" Click="CloseWindowButtonClick">  
                     <TextBlock x:Name="CloseWindowButtonText" Text="Close" HorizontalAlignment="Center" Width="0" FontFamily="Segoe UI" 
-                               VerticalAlignment="Center" TextAlignment="Center" FontWeight="SemiBold" Foreground="#FAFAFA"/>
+                               VerticalAlignment="Center" TextAlignment="Center" FontWeight="SemiBold" Foreground="#202020"/>
                     <Button.Style>
                         <Style TargetType="{x:Type Button}">
                             <Setter Property="Template">
@@ -74,24 +74,62 @@
             <Grid Grid.Row="1" x:Name="WindowContentGrid">
                 <Grid.RowDefinitions>
                     <RowDefinition x:Name="WindowContentScrollViewRow" Height="*"/>
-                    <RowDefinition x:Name="WindowContentDeviderRow" Height="1"/>
-                    <RowDefinition x:Name="WindowContentMessagingRow" Height="35"/>
+                    <RowDefinition x:Name="WindowContentMessagingRow" Height="*"/>
                 </Grid.RowDefinitions>
 
-                <ScrollViewer Grid.Row="0" x:Name="WindowContentScrollView" HorizontalAlignment="Left" VerticalAlignment="Top" ScrollViewer.VerticalScrollBarVisibility="Hidden" Margin="15">
+                <ScrollViewer Grid.Row="0" x:Name="WindowContentScrollView" HorizontalAlignment="Stretch" VerticalAlignment="Top" 
+                              ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="15,15,15,15">
                     <StackPanel x:Name="MainContainer" HorizontalAlignment="Left" VerticalAlignment="Top"/>
                 </ScrollViewer>
 
-                <Border Grid.Row="1" x:Name="WindowDevider" Height="1" Background="#FAFAFA" CornerRadius="0.5" HorizontalAlignment="Stretch" Margin="10,0,10,0"/>
+                <StackPanel Grid.Row="1" Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Stretch">
+                    <Border x:Name="PageIteratorLevelSelectionBackground" Grid.Row="1" Margin="15, 0, 15, 10" Background="#FAFAFA" CornerRadius="15"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Row="2" x:Name="WindowMessagingTextBlock" Text="Drag and drop images to scan" Foreground="#FAFAFA" 
-                           HorizontalAlignment="Center" FontWeight="SemiBold" FontFamily="Segoe UI" Margin="10" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="PageIteratorLevelSelectionText" Grid.Column="0" Text="How do you like the app to detect and sort the text?" Margin="10" 
+                                       Foreground="#333333" FontWeight="SemiBold" FontFamily="Segoe UI" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+
+                            <StackPanel x:Name="PageIteratorLevelSelectionStack" Grid.Column="1" Orientation="Horizontal" 
+                                        VerticalAlignment="Center" HorizontalAlignment="Right" Margin="10"/>
+                        </Grid>
+                    </Border>
+
+                    <Border x:Name="MessagingBackground" Grid.Row="1" Margin="15, 0, 15, 10" Background="#FAFAFA" CornerRadius="15"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Bottom">
+                        <TextBlock x:Name="WindowMessagingTextBlock" Text="Drag and drop images to scan" Foreground="#202020" 
+                                   HorizontalAlignment="Center" FontWeight="SemiBold" FontFamily="Segoe UI" Margin="10" VerticalAlignment="Center"/>
+                    </Border>
+                </StackPanel>
             </Grid>
 
             <Grid Grid.Row="1" x:Name="DropMessage" Visibility="Collapsed">
-                <Border CornerRadius="15" BorderThickness="0" Background="Black" Opacity="0.5" Visibility="Visible"/>
+                <Border CornerRadius="15" BorderThickness="0" Background="Black" Opacity="0.5"/>
 
                 <TextBlock Text="Drop to scan" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FAFAFA" FontFamily="Segoe UI" FontWeight="Bold" Margin="40" Visibility="Visible"/>
+            </Grid>
+
+            <Grid Grid.Row="1" x:Name="ScanningGif" Visibility="Collapsed">
+                <Border CornerRadius="15" BorderThickness="0" Background="Black" Opacity="0.5" Visibility="Visible"/>
+
+                <StackPanel Orientation="Vertical">
+                    <Image x:Name="QRCodeGif"  
+                           wpfgif:ImageBehavior.AnimatedSource="/Assets/LoadingGif.gif"
+                           wpfgif:ImageBehavior.AutoStart="True"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Center"
+                           Width="50"
+                           Height="50"
+                           Margin="0,10,0,10"
+                           Stretch="UniformToFill"/>
+
+                    <TextBlock Text="Scanning..." HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FAFAFA" 
+                               FontFamily="Segoe UI" FontWeight="Bold" Margin="0,0,0,50" Visibility="Visible"/>
+                </StackPanel>
             </Grid>
         </Grid>
     </Border>

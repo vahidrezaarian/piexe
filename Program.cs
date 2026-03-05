@@ -13,7 +13,7 @@ public partial class App : Application
         App app = new App();
         if (args != null && args.Length > 0)
         {
-            app.MainWindow = new MainWindow(PictureScanner.Scan(args[0]));
+            app.MainWindow = new MainWindow(args[0], Tesseract.PageIteratorLevel.Block);
         }
         else
         {

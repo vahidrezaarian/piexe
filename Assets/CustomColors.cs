@@ -80,6 +80,21 @@ public static class CustomColors
         }
     }
 
+    public static Color DropShaddowColor
+    {
+        get
+        {
+            if (IsDarkModeEnabled())
+            {
+                return Colors.White;
+            }
+            else
+            {
+                return Colors.Black;
+            }
+        }
+    }
+
     public static bool IsDarkModeEnabled()
     {
         if (Environment.OSVersion.Platform != PlatformID.Win32NT ||

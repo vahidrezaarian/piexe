@@ -1,14 +1,32 @@
 ﻿using System.Drawing;
+using Tesseract;
 
 namespace Piexe.Utilities;
 
 public static class PictureScanner
 {
-    public static List<AnalyzedItem> Scan(string imagePath)
+    public static List<AnalyzedItem> Scan(object image, PageIteratorLevel textScanningPageIteratorLevel, out Bitmap sourceImage)
+    {
+        if (image is string imagePath)
+        {
+            return Scan(imagePath, textScanningPageIteratorLevel, out sourceImage);
+        }
+        else if (image is Bitmap bitmap)
+        {
+            sourceImage = bitmap;
+            return Scan(bitmap, textScanningPageIteratorLevel);
+        }
+        else
+        {
+            throw new Exception("Invalid type!");
+        }
+    }
+
+    public static List<AnalyzedItem> Scan(string imagePath, PageIteratorLevel textScanningPageIteratorLevel, out Bitmap sourceImage)
     {
         var result = new List<AnalyzedItem>();
 
-        var barcodes = BarcodeScanner.Scan(imagePath);
+        var barcodes = BarcodeScanner.Scan(imagePath, out sourceImage);
         
         if (barcodes != null && barcodes.Count > 0)
         {
@@ -25,7 +43,7 @@ public static class PictureScanner
             }
         }
 
-        var texts = TextScanner.Scan(imagePath);
+        var texts = TextScanner.Scan(imagePath, textScanningPageIteratorLevel);
         if (texts != null && texts.Length > 0)
         {
             foreach (var text in texts)
@@ -37,8 +55,13 @@ public static class PictureScanner
         return result;
     }
 
-    public static List<AnalyzedItem> Scan(Bitmap imageBitmap)
+    public static List<AnalyzedItem> Scan(Bitmap? imageBitmap, PageIteratorLevel textScanningPageIteratorLevel)
     {
+        if (imageBitmap is null)
+        {
+            throw new ArgumentNullException(nameof(imageBitmap));
+        }
+
         var result = new List<AnalyzedItem>();
 
         var barcodes = BarcodeScanner.Scan(imageBitmap);
@@ -58,7 +81,7 @@ public static class PictureScanner
             }
         }
 
-        var texts = TextScanner.Scan(imageBitmap);
+        var texts = TextScanner.Scan(imageBitmap, textScanningPageIteratorLevel);
         if (texts != null && texts.Length > 0)
         {
             foreach (var text in texts)

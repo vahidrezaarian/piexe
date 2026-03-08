@@ -43,6 +43,7 @@ public partial class MainWindow : Window
     private void InitializeTheWindow()
     {
         InitializeComponent();
+        SetProgressRingColors();
         ShowLoading();
         InitializePageIteratorCombobox();
     }
@@ -82,10 +83,29 @@ public partial class MainWindow : Window
                 var m = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
                     ?? Matrix.Identity;
 
-                Left = (m.Transform(new Point(px.Right, px.Bottom)).X - Width) / 2;
-                Top = 0;
+                var screenWidth = m.Transform(new Point(px.Right, px.Bottom)).X;
+                var screenHeight = m.Transform(new Point(px.Right, px.Bottom)).Y;
+
+                if (Height > screenHeight)
+                {
+                    Height = screenHeight;
+                }
+
+                if (Width > screenWidth)
+                {
+                    Width = screenWidth;
+                }
+
+                Left = (screenWidth - Width) / 2;
+                Top = (screenHeight - Height) / 2;
             });
         });
+    }
+
+    private void SetProgressRingColors()
+    {
+        ScanningProgressRing.Foreground = SystemColors.AccentColorBrush;
+        ScanningProgressRingBackground.Background = SystemColors.DesktopBrush;
     }
 
     private void CheckScrollBarVisibility()

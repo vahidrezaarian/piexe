@@ -4,8 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Piexe"
-        xmlns:wpfgif="http://wpfanimatedgif.codeplex.com"
-        xmlns:fa="http://schemas.fontawesome.io/icons/"
+        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
         WindowStyle="SingleBorderWindow"
         AllowDrop="True"
         ThemeMode="System"
@@ -63,18 +62,10 @@
         </Grid>
 
         <Grid x:Name="ScanningGif" Visibility="Collapsed" VerticalAlignment="Stretch">
-            <Border CornerRadius="15,15,0,0" BorderThickness="0" Background="Black" Opacity="0.5" Visibility="Visible"/>
-
+            <Border x:Name="ScanningProgressRingBackground" CornerRadius="15,15,0,0" BorderThickness="0" Background="Black" Opacity="0.5" Visibility="Visible"/>
             <StackPanel Orientation="Vertical">
-                <Image x:Name="QRCodeGif"  
-                   wpfgif:ImageBehavior.AnimatedSource="/Assets/LoadingGif.gif"
-                   wpfgif:ImageBehavior.AutoStart="True"
-                   VerticalAlignment="Center"
-                   HorizontalAlignment="Center"
-                   Width="50"
-                   Height="50"
-                   Margin="0,10,0,10"
-                   Stretch="UniformToFill"/>
+                <mah:ProgressRing x:Name="ScanningProgressRing" Width="50" Height="50"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,10,0,10"/>
 
                 <TextBlock Text="Scanning..." HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FAFAFA" 
                            FontWeight="Bold" Margin="0,0,0,50" Visibility="Visible"/>
